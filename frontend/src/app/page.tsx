@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { useAnimationFrame, useMotionValue } from "motion/react"
-import { Check, PanelLeft, PenLine } from "lucide-react"
+import { motion, useAnimationFrame, useMotionValue, useReducedMotion } from "motion/react"
+import { Check, PanelLeft, PenLine, Upload } from "lucide-react"
 
 import {
   AnimatedSidebarInset,
@@ -37,7 +37,7 @@ import { cn } from "@/lib/utils"
 
 type Fase = "inicio" | "escuchando" | "pensando" | "hablando" | "listo" | "error"
 
-const COLORES = ["#6d8cff", "#e8edff", "#24346f"] as const
+const COLORES = ["#0047fc", "#dce6ff", "#011b53"] as const // azul, claro y marino de la marca
 const PALABRA_S = 0.1
 const CLAVE_PERSONA = "vozclara:persona-actual"
 
@@ -56,6 +56,7 @@ export default function Home() {
   const [corrigiendo, setCorrigiendo] = useState(false)
   const [borrador, setBorrador] = useState("")
   const mic = useRecorder()
+  const reducirMovimiento = useReducedMotion()
 
   useEffect(() => {
     listarPersonas().then((ps) => {
@@ -152,14 +153,14 @@ export default function Home() {
     const ruta = `/audios-prueba/${a.id}.wav`
     const wav = await fetch(ruta).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
     if (!wav && HAY_BACK) {
-      setError(`Falta el archivo public${ruta}. Copialo desde Drive (demo_turbo).`)
+      setError(`Falta el archivo public${ruta}. Copialo desde Drive.`)
       return setFase("error")
     }
     if (wav) {
       setFase("escuchando")
       await reproducir(URL.createObjectURL(wav))
     }
-    procesar(wav ?? new Blob(), `${a.id}.wav`, { crudo: a.crudo, texto: a.texto })
+    procesar(wav ?? new Blob(), `${a.id}.wav`, { texto: a.texto })
   }
 
   async function confirmar(textoFinal: string) {
@@ -243,16 +244,24 @@ export default function Home() {
             }}
           />
         ) : (
-          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-4 pb-10 sm:px-6">
-            <VoiceOrb
-              analyser={fase === "escuchando" ? (mic.analyser ?? voz) : voz}
-              activity={actividad}
-              colors={COLORES}
-              aria-label="Asistente"
-              className="mt-2 w-44 sm:mt-6 sm:w-56"
-            />
+          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-4 sm:px-6">
+            {/* Grande mientras espera o escucha; cuando hay respuesta sube y se achica para dejarle lugar. */}
+            <motion.div
+              initial={false}
+              animate={turno ? { width: 128, marginTop: 8 } : { width: 208, marginTop: 40 }}
+              transition={reducirMovimiento ? { duration: 0 } : { type: "spring", stiffness: 160, damping: 24 }}
+              className="shrink-0"
+            >
+              <VoiceOrb
+                analyser={fase === "escuchando" ? (mic.analyser ?? voz) : voz}
+                activity={actividad}
+                colors={COLORES}
+                aria-label="Asistente"
+                className="w-full"
+              />
+            </motion.div>
 
-            <section aria-live="polite" className="mt-8 flex min-h-40 w-full flex-col items-center text-center">
+            <section aria-live="polite" className="mt-6 flex min-h-40 w-full flex-col items-center text-center">
               {fase === "inicio" && (
                 <p className="text-lg text-muted-foreground">
                   {modo === "hablar" ? "Mantené apretado el botón y hablá." : "Subí un audio y te digo qué entendí."}
@@ -272,20 +281,17 @@ export default function Home() {
                   <TextGenerateEffect
                     key={textoTurno}
                     staggerDuration={fase === "hablando" ? PALABRA_S : 0}
-                    className="mt-2 max-w-xl text-2xl leading-snug font-medium tracking-tight text-balance sm:text-3xl"
+                    className={cn(
+                      "mt-2 max-w-xl leading-snug font-medium tracking-tight text-balance",
+                      textoTurno.length > 120 ? "text-lg sm:text-xl" : "text-2xl sm:text-3xl",
+                    )}
                   >
                     {textoTurno}
                   </TextGenerateEffect>
 
                   <dl className="mt-5 max-w-xl space-y-1 text-sm text-muted-foreground">
-                    {turno.crudo && turno.crudo !== textoTurno && (
-                      <div>
-                        <dt className="inline">Whisper escuchó: </dt>
-                        <dd className="inline italic line-clamp-2">“{turno.crudo}”</dd>
-                      </div>
-                    )}
                     {referencia && (
-                      <div>
+                      <div className="line-clamp-2" title={referencia}>
                         <dt className="inline">Lo que dijo: </dt>
                         <dd className="inline italic">“{referencia}”</dd>
                       </div>
@@ -328,22 +334,22 @@ export default function Home() {
                           </div>
                         </form>
                       ) : (
-                        <div className="flex flex-col items-center gap-3">
-                          <span className="text-sm text-muted-foreground">¿Es lo que quisiste decir?</span>
-                          <div className="flex gap-3">
-                            <Button size="lg" className="h-12 px-6 text-base" onClick={() => confirmar(turno.texto)}>
-                              <Check /> Sí
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-4">
+                          <span className="text-base font-medium">¿Es esto lo que quisiste decir?</span>
+                          <div className="flex w-full max-w-sm gap-3">
+                            <Button size="lg" className="h-12 flex-1 text-base" onClick={() => confirmar(turno.texto)}>
+                              <Check /> Sí, validar
                             </Button>
                             <Button
                               size="lg"
                               variant="outline"
-                              className="h-12 px-6 text-base"
+                              className="h-12 flex-1 text-base"
                               onClick={() => {
                                 setBorrador(turno.texto)
                                 setCorrigiendo(true)
                               }}
                             >
-                              <PenLine /> Corregir
+                              <PenLine /> No, corregir
                             </Button>
                           </div>
                         </div>
@@ -354,7 +360,7 @@ export default function Home() {
               )}
             </section>
 
-            <div className="mt-auto flex w-full flex-col items-center pt-8">
+            <div className="sticky bottom-0 mt-auto flex w-full flex-col items-center bg-background/90 pt-4 pb-6 backdrop-blur">
               {modo === "hablar" ? (
                 <VoiceInput
                   listening={fase === "escuchando" && !!mic.analyser}
@@ -362,6 +368,21 @@ export default function Home() {
                   onStart={empezar}
                   onStop={terminar}
                 />
+              ) : turno || ocupado ? (
+                // Con un resultado en pantalla, el dropzone se achica para no tapar la validación.
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-12 rounded-full px-5 text-base"
+                  disabled={ocupado}
+                  onClick={() => {
+                    setTurno(null)
+                    setReferencia(null)
+                    setFase("inicio")
+                  }}
+                >
+                  <Upload /> Subir otro audio
+                </Button>
               ) : (
                 <div className="w-full max-w-md">
                   <FileDropzone accept="audio/*" maxSizeMB={25} onUpload={(f) => procesar(f, f.name)} />

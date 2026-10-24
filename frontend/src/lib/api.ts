@@ -6,16 +6,15 @@
 //   PUT  /memoria/{persona_id}      {persona, contactos, vocabulario, correcciones} → Memoria
 //   POST /turno         form-data: audio, persona_id → Turno (el back lo guarda en el historial)
 //   POST /validar       {persona_id, turno_id, texto_final} → Memoria
-//        Si texto_final ≠ turno.texto, el back guarda la corrección {crudo → texto_final}.
+//        Si texto_final ≠ turno.texto, el back guarda la corrección {original: turno.texto → texto_final}.
 //
 // Sin NEXT_PUBLIC_API_URL todo funciona contra localStorage, para poder probar la interfaz.
 
 export type Persona = { id: string; nombre: string; notas?: string }
 export type Contacto = { nombre: string; relacion: string; telefono?: string }
-export type Correccion = { crudo: string; texto: string; fecha: string }
+export type Correccion = { original: string; texto: string; fecha: string }
 export type Turno = {
   id: string
-  crudo: string // lo que escuchó Whisper, sin corregir
   texto: string // lo que el sistema entendió
   audio_url?: string // voz del asistente (Gemini TTS), si el back la devuelve
   fecha: string
@@ -78,8 +77,8 @@ export async function validar(personaId: string, turnoId: string, textoFinal: st
   return pedir("/validar", json("POST", { persona_id: personaId, turno_id: turnoId, texto_final: textoFinal }))
 }
 
-// Solo para el modo sin back: qué "escucharía" Whisper y qué devolvería el sistema.
-export type Pista = { crudo: string; texto: string }
+// Solo para el modo sin back: qué texto devolvería el sistema.
+export type Pista = { texto: string }
 
 // ponytail: back falso en localStorage. El aprendizaje acá es una coincidencia exacta con una
 // corrección validada; el back real busca las correcciones parecidas y se las pasa al LLM.
@@ -138,13 +137,12 @@ const local = {
     )
     return m
   },
-  async turno(id: string, pista: Pista = { crudo: "kero ablar co maia", texto: "Quiero hablar con maia." }): Promise<Turno> {
+  async turno(id: string, pista: Pista = { texto: "Quiero hablar con maia." }): Promise<Turno> {
     await new Promise((r) => setTimeout(r, 1200))
     const m = local.memoria(id)
-    const aprendida = m.correcciones.find((c) => c.crudo === pista.crudo)
+    const aprendida = m.correcciones.find((c) => c.original === pista.texto)
     const turno: Turno = {
       id: crypto.randomUUID(),
-      crudo: pista.crudo,
       texto: aprendida?.texto ?? pista.texto,
       fecha: new Date().toISOString(),
       estado: "pendiente",
@@ -161,8 +159,8 @@ const local = {
       h.id === turnoId ? { ...h, estado: corregido ? "corregido" : "validado", texto_final: textoFinal } as Turno : h,
     )
     const correcciones = corregido
-      ? [{ crudo: t.crudo, texto: textoFinal, fecha: new Date().toISOString() },
-         ...m.correcciones.filter((c) => c.crudo !== t.crudo)]
+      ? [{ original: t.texto, texto: textoFinal, fecha: new Date().toISOString() },
+         ...m.correcciones.filter((c) => c.original !== t.texto)]
       : m.correcciones
     const nueva = { ...m, historial, correcciones }
     local.escribir(`memoria:${id}`, nueva)

@@ -172,7 +172,7 @@ export function Perfil({ memoria, personas, onGuardar, onCambiarPersona, onCrear
             {datos.correcciones.map((c, i) => (
               <li key={i} className="flex items-start gap-3 p-3">
                 <div className="min-w-0 flex-1 text-sm">
-                  <p className="truncate text-muted-foreground line-through decoration-muted-foreground/40">{c.crudo}</p>
+                  <p className="truncate text-muted-foreground line-through decoration-muted-foreground/40">{c.original}</p>
                   <p className="mt-0.5 font-medium">{c.texto}</p>
                 </div>
                 <Button

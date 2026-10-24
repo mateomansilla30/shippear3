@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import { AudioLines, Check, Circle, Mic, PenLine, UserRound, X } from "lucide-react"
 
 import {
@@ -45,8 +46,21 @@ export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, on
     <AnimatedSidebar ariaLabel="Voz Clara" collapsible="icon" panelClassName="bg-muted/30">
       <AnimatedSidebarHeader className="p-3 pb-2">
         <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
-          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d8cff] to-[#24346f]" />
-          <span className="truncate text-sm font-semibold group-data-[state=collapsed]/sidebar:hidden">Voz Clara</span>
+          <Image
+            src="/logo-voz-clara.png"
+            alt="Voz Clara"
+            width={1068}
+            height={160}
+            priority
+            className="h-6 w-auto group-data-[state=collapsed]/sidebar:hidden"
+          />
+          <Image
+            src="/emblema-voz-clara.png"
+            alt="Voz Clara"
+            width={397}
+            height={256}
+            className="hidden h-5 w-auto shrink-0 group-data-[state=collapsed]/sidebar:block"
+          />
           <AnimatedSidebarClose aria-label="Cerrar menú" className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
             <X aria-hidden="true" className="size-4" />
           </AnimatedSidebarClose>
@@ -131,7 +145,7 @@ export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, on
           onClick={() => onVista("perfil")}
           className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e8edff] text-xs font-semibold text-[#24346f]">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#dce6ff] text-xs font-semibold text-[#011b53]">
             {nombre.slice(0, 2).toUpperCase()}
           </span>
           <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
