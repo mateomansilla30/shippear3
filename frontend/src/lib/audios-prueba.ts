@@ -1,5 +1,8 @@
-// Audios de test de S-DiverSe recomendados para la demo (ver reconocimiento-voz/GUIA.md).
-// Los WAV no van al repo por la licencia: copialos de Drive (sdiverse_hackathon/ o del zip) a frontend/public/audios-prueba/<id>.wav. Los textos salen de transcripciones_test.csv.
+// Audios de test de S-DiverSe para la demo de la app (hablantes que ningún modelo vio al entrenar).
+// Elegidos con el pipeline en vivo (Groq + reglas): uno donde la confianza sale baja y la app debería preguntar,
+// dos donde Whisper cambia palabras con confianza alta y la memoria aprende de la corrección, y uno largo y difícil.
+// Los WAV no van al repo por la licencia: copialos de Drive (sdiverse_hackathon/ o del zip) a frontend/public/audios-prueba/<id>.wav.
+// `texto` es lo que devolvió el pipeline en vivo (para el modo sin back).
 
 export type AudioPrueba = {
   id: string
@@ -11,34 +14,33 @@ export type AudioPrueba = {
 
 export const AUDIOS_PRUEBA: AudioPrueba[] = [
   {
+    id: "ALS_M06_08_01",
+    titulo: "ELA · no está seguro",
+    detalle: "10 s · confianza baja: debería preguntar",
+    referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
+    texto: "bien muy bien y en octubre",
+  },
+  {
+    id: "STROKE_F01_02",
+    titulo: "ACV · aprende una palabra",
+    detalle: "8 s · corregí \"parecia\" por \"paresia\" y probá de nuevo",
+    referencia: "Y, eh, tuve como secuela una paresia bilateral derecha",
+    texto: "tuve como secuela una parecia bilateral derecha",
+  },
+  {
+    id: "ALS_M02_02",
+    titulo: "ELA · aprende una frase",
+    detalle: "7 s · corregí \"productivo\" y \"un buen\" y probá de nuevo",
+    referencia: "Pues diría que soy inteligente, proactivo y que soy muy cabezón.",
+    texto: "Pues diría que soy inteligente, productivo y que soy un buen cabezón.",
+  },
+  {
     id: "ALS_M06_07",
     titulo: "ELA · audio largo",
     detalle: "31 s · inteligibilidad baja",
     referencia:
       "Porque no me entiende muchas veces. Me olvido y hablo rápido, antes me emocionaba, porque yo lloraba porque ella no me entendía. Ahora uso una aplicación que es de un argentino, Matteo Salvatto, se llama \"Háblalo\", la uso con ella para hacer la tarea, por ejemplo.",
     texto:
-      "Pues no me entiendo muchas veces. Pues me olvido de hablar rápido. Antes me emocionaba porque yo no me entendía. Ahora uso una aplicación que me ayudó, un argentino, Mateo Zabato, que no habla, o no.",
-  },
-  {
-    id: "PARKINSON_M01_07_01",
-    titulo: "Parkinson · frase corta",
-    detalle: "4 s · frase corta",
-    referencia: "Si, si no me cabe duda, de hecho ya estoy perdiendo.",
-    texto: "Ganará. Sí, no cabe duda, de hecho ya estoy perdiendo.",
-  },
-  {
-    id: "ALS_F02_04",
-    titulo: "ELA · casi perfecto",
-    detalle: "15 s · casi perfecto",
-    referencia:
-      "Empezamos a charlar, bueno, acerca de algunos proyectos y demás, y no pensé que iba a tener todo tanta repercusión.",
-    texto: "Empezamos a charlar acerca de algunos proyectos y demás y no pensé que iba a tener todo tanta repercusión.",
-  },
-  {
-    id: "STROKE_F01_02",
-    titulo: "ACV · paresia",
-    detalle: "8 s · el LLM cambia \"paresia\" por \"parálisis\"",
-    referencia: "Y, eh, tuve como secuela una paresia bilateral derecha",
-    texto: "Tuve como secuela una parálisis bilateral derecha.",
+      "Pues no me entiendo muchas veces. Pues me olvido de hablar rápido. Antes me emocionaba porque yo no me entendía. Ahora uso una aplicación que es un argentino, Mateo Zabato, que no habla o no.",
   },
 ]
