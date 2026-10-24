@@ -1,0 +1,14 @@
+# Audios y datos de S-DiverSe: no se redistribuyen (pertenecen a los videos originales)
+*.wav
+*.mp3
+*.m4a
+*.zip
+/data/
+/audio/
+/sdiverse_hackathon/
+
+# Modelos y checkpoints
+/lora/
+checkpoint-*/
+*.safetensors
+.ipynb_checkpoints/

@@ -1,0 +1,2 @@
+grupo,segmentos,hablantes,palabras,whisper-small,whisper-small + reglas,whisper-small + reglas + LLM,whisper-small LoRA,LoRA + reglas,LoRA + reglas + LLM,whisper-large-v3-turbo,turbo + reglas,turbo + reglas + LLM (final)
+TOTAL,98,6,2430,88.4,43.6,41.4,55.8,38.5,36.9,73.0,31.1,30.7

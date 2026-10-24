@@ -1,0 +1,2 @@
+grupo,segmentos,hablantes,palabras,whisper-small + reglas + LLM,whisper-small + reglas + LLM + contexto,LoRA + reglas + LLM,LoRA + reglas + LLM + contexto
+TOTAL,98,6,2430,41.1,41.0,36.0,35.1

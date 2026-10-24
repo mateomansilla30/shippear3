@@ -1,0 +1,7 @@
+Speaker_ID,segmentos,hablantes,palabras,whisper-small,whisper-small + reglas,whisper-small + reglas + LLM,whisper-small LoRA,LoRA + reglas,LoRA + reglas + LLM,whisper-large-v3-turbo,turbo + reglas,turbo + reglas + LLM (final)
+ALS_F02,7,1,141,27.0,27.0,22.7,7.8,8.5,12.8,12.1,10.6,10.6
+ALS_M02,6,1,188,25.5,25.5,22.9,17.0,17.0,17.6,11.2,11.2,11.7
+ALS_M06,34,1,926,167.8,70.6,69.0,105.4,60.7,59.3,141.1,54.0,53.5
+PARKINSON_M01,27,1,1015,46.7,28.2,26.3,29.0,28.5,25.5,19.3,18.4,18.3
+STROKE_F01,12,1,148,14.2,14.2,10.1,18.2,18.2,15.5,12.2,12.2,11.5
+STROKE_M02,12,1,12,108.3,100.0,91.7,133.3,116.7,116.7,1783.3,125.0,100.0
