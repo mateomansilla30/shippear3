@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# audios de S-DiverSe: no se redistribuyen (licencia)
+/public/audios-prueba/*.wav

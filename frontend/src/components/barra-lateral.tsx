@@ -1,0 +1,149 @@
+"use client"
+
+import { AudioLines, Check, Circle, Mic, PenLine, UserRound, X } from "lucide-react"
+
+import {
+  AnimatedSidebar,
+  AnimatedSidebarClose,
+  AnimatedSidebarContent,
+  AnimatedSidebarFooter,
+  AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
+  AnimatedSidebarGroupLabel,
+  AnimatedSidebarHeader,
+  AnimatedSidebarMenu,
+  AnimatedSidebarMenuButton,
+  AnimatedSidebarMenuItem,
+  AnimatedSidebarRail,
+} from "@/components/animated-sidebar"
+import { AUDIOS_PRUEBA, type AudioPrueba } from "@/lib/audios-prueba"
+import type { Memoria, Turno } from "@/lib/api"
+
+export type Vista = "asistente" | "perfil"
+
+const ICONO_ESTADO = {
+  pendiente: <Circle className="size-3.5" />,
+  validado: <Check className="size-4 text-emerald-600" />,
+  corregido: <PenLine className="size-4 text-amber-600" />,
+}
+
+type Props = {
+  vista: Vista
+  memoria: Memoria | null
+  turnoActivo?: string
+  ocupado: boolean
+  onVista: (v: Vista) => void
+  onTurno: (t: Turno) => void
+  onProbar: (a: AudioPrueba) => void
+}
+
+export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, onTurno, onProbar }: Props) {
+  const recientes = memoria?.historial.slice(0, 8) ?? []
+  const nombre = memoria?.persona.nombre ?? "…"
+
+  return (
+    <AnimatedSidebar ariaLabel="Voz Clara" collapsible="icon" panelClassName="bg-muted/30">
+      <AnimatedSidebarHeader className="p-3 pb-2">
+        <div className="flex min-h-11 items-center gap-3 overflow-hidden px-2">
+          <span className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d8cff] to-[#24346f]" />
+          <span className="truncate text-sm font-semibold group-data-[state=collapsed]/sidebar:hidden">Voz Clara</span>
+          <AnimatedSidebarClose aria-label="Cerrar menú" className="ml-auto text-muted-foreground hover:bg-muted md:hidden">
+            <X aria-hidden="true" className="size-4" />
+          </AnimatedSidebarClose>
+        </div>
+      </AnimatedSidebarHeader>
+
+      <AnimatedSidebarContent className="px-2 pt-1">
+        <AnimatedSidebarGroup>
+          <AnimatedSidebarGroupContent>
+            <AnimatedSidebarMenu>
+              <AnimatedSidebarMenuItem>
+                <AnimatedSidebarMenuButton
+                  icon={<Mic className="size-4" />}
+                  isActive={vista === "asistente"}
+                  onSelect={() => onVista("asistente")}
+                >
+                  Asistente
+                </AnimatedSidebarMenuButton>
+              </AnimatedSidebarMenuItem>
+              <AnimatedSidebarMenuItem>
+                <AnimatedSidebarMenuButton
+                  icon={<UserRound className="size-4" />}
+                  isActive={vista === "perfil"}
+                  badge={memoria?.correcciones.length || undefined}
+                  onSelect={() => onVista("perfil")}
+                >
+                  Perfil y memoria
+                </AnimatedSidebarMenuButton>
+              </AnimatedSidebarMenuItem>
+            </AnimatedSidebarMenu>
+          </AnimatedSidebarGroupContent>
+        </AnimatedSidebarGroup>
+
+        <AnimatedSidebarGroup>
+          <AnimatedSidebarGroupLabel>Recientes</AnimatedSidebarGroupLabel>
+          <AnimatedSidebarGroupContent>
+            {recientes.length === 0 ? (
+              <p className="px-3 text-xs text-muted-foreground group-data-[state=collapsed]/sidebar:hidden">
+                Todavía no hay transcripciones.
+              </p>
+            ) : (
+              <AnimatedSidebarMenu>
+                {recientes.map((t) => (
+                  <AnimatedSidebarMenuItem key={t.id}>
+                    <AnimatedSidebarMenuButton
+                      icon={ICONO_ESTADO[t.estado]}
+                      isActive={vista === "asistente" && turnoActivo === t.id}
+                      onSelect={() => onTurno(t)}
+                    >
+                      {t.texto_final ?? t.texto}
+                    </AnimatedSidebarMenuButton>
+                  </AnimatedSidebarMenuItem>
+                ))}
+              </AnimatedSidebarMenu>
+            )}
+          </AnimatedSidebarGroupContent>
+        </AnimatedSidebarGroup>
+
+        <AnimatedSidebarGroup>
+          <AnimatedSidebarGroupLabel>Audios de prueba</AnimatedSidebarGroupLabel>
+          <AnimatedSidebarGroupContent>
+            <AnimatedSidebarMenu>
+              {AUDIOS_PRUEBA.map((a) => (
+                <AnimatedSidebarMenuItem key={a.id}>
+                  <AnimatedSidebarMenuButton
+                    icon={<AudioLines className="size-4" />}
+                    disabled={ocupado}
+                    onSelect={() => onProbar(a)}
+                  >
+                    {a.titulo}
+                  </AnimatedSidebarMenuButton>
+                </AnimatedSidebarMenuItem>
+              ))}
+            </AnimatedSidebarMenu>
+          </AnimatedSidebarGroupContent>
+        </AnimatedSidebarGroup>
+      </AnimatedSidebarContent>
+
+      <AnimatedSidebarFooter className="border-none p-3">
+        <button
+          type="button"
+          onClick={() => onVista("perfil")}
+          className="flex min-h-11 w-full items-center gap-3 overflow-hidden rounded-xl p-1 text-left outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-[#e8edff] text-xs font-semibold text-[#24346f]">
+            {nombre.slice(0, 2).toUpperCase()}
+          </span>
+          <span className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+            <span className="block truncate text-sm font-medium">{nombre}</span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {memoria?.correcciones.length === 1 ? "1 corrección aprendida" : `${memoria?.correcciones.length ?? 0} correcciones aprendidas`}
+            </span>
+          </span>
+        </button>
+      </AnimatedSidebarFooter>
+
+      <AnimatedSidebarRail aria-label="Mostrar u ocultar menú" />
+    </AnimatedSidebar>
+  )
+}

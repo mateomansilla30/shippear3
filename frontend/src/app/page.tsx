@@ -1,35 +1,88 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useAnimationFrame, useMotionValue } from "motion/react"
+import { Check, PanelLeft, PenLine } from "lucide-react"
 
+import {
+  AnimatedSidebarInset,
+  AnimatedSidebarProvider,
+  AnimatedSidebarTrigger,
+} from "@/components/animated-sidebar"
+import { BarraLateral, type Vista } from "@/components/barra-lateral"
+import { Perfil } from "@/components/perfil"
 import { VoiceOrb } from "@/components/voice-orb"
 import { VoiceInput } from "@/components/voice-input"
 import { TextShimmer } from "@/components/text-shimmer"
 import { TextGenerateEffect } from "@/components/text-generate-effect"
 import { FileDropzone } from "@/components/ui/file-dropzone"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
 import { useRecorder } from "@/hooks/use-recorder"
-import { enviarAudio, type Turno } from "@/lib/api"
+import {
+  HAY_BACK,
+  crearPersona,
+  enviarAudio,
+  guardarMemoria,
+  listarPersonas,
+  obtenerMemoria,
+  validar,
+  type Memoria,
+  type Persona,
+  type Pista,
+  type Turno,
+} from "@/lib/api"
+import type { AudioPrueba } from "@/lib/audios-prueba"
 import { cn } from "@/lib/utils"
 
 type Fase = "inicio" | "escuchando" | "pensando" | "hablando" | "listo" | "error"
 
 const COLORES = ["#6d8cff", "#e8edff", "#24346f"] as const
 const PALABRA_S = 0.1
+const CLAVE_PERSONA = "vozclara:persona-actual"
 
 export default function Home() {
+  const [personas, setPersonas] = useState<Persona[]>([])
+  const [personaId, setPersonaId] = useState("")
+  const [memoria, setMemoria] = useState<Memoria | null>(null)
+  const [vista, setVista] = useState<Vista>("asistente")
+
   const [fase, setFase] = useState<Fase>("inicio")
   const [modo, setModo] = useState<"hablar" | "subir">("hablar")
   const [turno, setTurno] = useState<Turno | null>(null)
+  const [referencia, setReferencia] = useState<string | null>(null)
   const [error, setError] = useState("")
-  const [vozAsistente, setVozAsistente] = useState<AnalyserNode | null>(null)
+  const [voz, setVoz] = useState<AnalyserNode | null>(null)
+  const [corrigiendo, setCorrigiendo] = useState(false)
+  const [borrador, setBorrador] = useState("")
   const mic = useRecorder()
+
+  useEffect(() => {
+    listarPersonas().then((ps) => {
+      setPersonas(ps)
+      let guardada = ""
+      try {
+        guardada = localStorage.getItem(CLAVE_PERSONA) ?? ""
+      } catch {}
+      setPersonaId(ps.some((p) => p.id === guardada) ? guardada : (ps[0]?.id ?? ""))
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!personaId) return
+    try {
+      localStorage.setItem(CLAVE_PERSONA, personaId)
+    } catch {}
+    setTurno(null)
+    setFase("inicio")
+    obtenerMemoria(personaId).then(setMemoria)
+  }, [personaId])
 
   // Mientras "habla" sin audio del back, el orbe simula sílabas y pausas.
   const actividad = useMotionValue(0)
   const hablaHasta = useRef(0)
   useAnimationFrame((ms) => {
-    if (fase !== "hablando" || vozAsistente) return actividad.set(0)
+    if (fase !== "hablando" || voz) return actividad.set(0)
     const t = ms / 1000
     const frase = Math.max(0, Math.sin(t * 0.85 + 1))
     const silaba = Math.max(0, Math.sin(t * 9.3 + Math.sin(t * 2.1)))
@@ -37,41 +90,48 @@ export default function Home() {
     if (ms > hablaHasta.current) setFase("listo")
   })
 
-  async function procesar(audio: Blob, nombre?: string) {
+  // Reproduce un audio conectado al orbe. Resuelve cuando termina (o si no se pudo reproducir).
+  function reproducir(src: string) {
+    return new Promise<void>((resolve) => {
+      const audio = new Audio(src)
+      audio.crossOrigin = "anonymous"
+      const ctx = new AudioContext()
+      const nodo = ctx.createAnalyser()
+      ctx.createMediaElementSource(audio).connect(nodo)
+      nodo.connect(ctx.destination)
+      setVoz(nodo)
+      const fin = () => {
+        setVoz(null)
+        ctx.close()
+        resolve()
+      }
+      audio.onended = fin
+      audio.play().catch(fin)
+    })
+  }
+
+  async function procesar(audio: Blob, nombre?: string, pista?: Pista) {
     setFase("pensando")
     setError("")
+    setCorrigiendo(false)
     try {
-      const r = await enviarAudio(audio, nombre)
-      setTurno(r)
+      const t = await enviarAudio(personaId, audio, nombre, pista)
+      setTurno(t)
+      obtenerMemoria(personaId).then(setMemoria)
       setFase("hablando")
-      if (r.audio_url) reproducir(r.audio_url)
-      else hablaHasta.current = performance.now() + (r.texto.split(" ").length * PALABRA_S + 0.8) * 1000
+      if (t.audio_url) reproducir(t.audio_url).then(() => setFase("listo"))
+      else hablaHasta.current = performance.now() + (t.texto.split(" ").length * PALABRA_S + 0.8) * 1000
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pude procesar el audio")
       setFase("error")
     }
   }
 
-  function reproducir(url: string) {
-    const audio = new Audio(url)
-    audio.crossOrigin = "anonymous"
-    const ctx = new AudioContext()
-    const nodo = ctx.createAnalyser()
-    ctx.createMediaElementSource(audio).connect(nodo)
-    nodo.connect(ctx.destination)
-    setVozAsistente(nodo)
-    audio.onended = () => {
-      setVozAsistente(null)
-      ctx.close()
-      setFase("listo")
-    }
-    audio.play().catch(() => audio.onended?.(new Event("ended")))
-  }
-
   async function empezar() {
     try {
       await mic.start()
       setTurno(null)
+      setReferencia(null)
       setFase("escuchando")
     } catch {
       setError("No pude usar el micrófono. Revisá los permisos del navegador.")
@@ -85,82 +145,232 @@ export default function Home() {
     procesar(audio, `grabacion.${audio.type.includes("mp4") ? "mp4" : "webm"}`)
   }
 
-  const ocupado = fase === "pensando" || fase === "hablando"
+  async function probar(a: AudioPrueba) {
+    setVista("asistente")
+    setTurno(null)
+    setReferencia(a.referencia)
+    const ruta = `/audios-prueba/${a.id}.wav`
+    const wav = await fetch(ruta).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
+    if (!wav && HAY_BACK) {
+      setError(`Falta el archivo public${ruta}. Copialo desde Drive (demo_turbo).`)
+      return setFase("error")
+    }
+    if (wav) {
+      setFase("escuchando")
+      await reproducir(URL.createObjectURL(wav))
+    }
+    procesar(wav ?? new Blob(), `${a.id}.wav`, { crudo: a.crudo, texto: a.texto })
+  }
+
+  async function confirmar(textoFinal: string) {
+    if (!turno) return
+    const m = await validar(personaId, turno.id, textoFinal)
+    setMemoria(m)
+    setTurno(m.historial.find((h) => h.id === turno.id) ?? turno)
+    setCorrigiendo(false)
+  }
+
+  function verTurno(t: Turno) {
+    setVista("asistente")
+    setTurno(t)
+    setReferencia(null)
+    setCorrigiendo(false)
+    setFase("listo")
+  }
+
+  const ocupado = fase === "escuchando" || fase === "pensando" || fase === "hablando"
+  const textoTurno = turno ? (turno.texto_final ?? turno.texto) : ""
 
   return (
-    <div className="flex min-h-dvh flex-col bg-background text-foreground">
-      <header className="mx-auto flex w-full max-w-2xl items-center justify-between px-4 py-5 sm:px-6">
-        <span className="text-base font-semibold tracking-tight">Voz Clara</span>
-        <div role="tablist" aria-label="Cómo mandar el audio" className="flex rounded-full border p-1 text-sm">
-          {(["hablar", "subir"] as const).map((m) => (
-            <button
-              key={m}
-              role="tab"
-              aria-selected={modo === m}
-              onClick={() => setModo(m)}
-              disabled={fase === "escuchando"}
-              className={cn(
-                "rounded-full px-3 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
-                modo === m ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {m === "hablar" ? "Hablar" : "Subir audio"}
-            </button>
-          ))}
-        </div>
-      </header>
+    <AnimatedSidebarProvider className="bg-background text-foreground">
+      <BarraLateral
+        vista={vista}
+        memoria={memoria}
+        turnoActivo={turno?.id}
+        ocupado={ocupado}
+        onVista={setVista}
+        onTurno={verTurno}
+        onProbar={probar}
+      />
 
-      <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-4 pb-10 sm:px-6">
-        <VoiceOrb
-          analyser={fase === "escuchando" ? mic.analyser : vozAsistente}
-          activity={actividad}
-          colors={COLORES}
-          aria-label="Asistente"
-          className="mt-4 w-52 sm:mt-8 sm:w-64"
-        />
-
-        <section aria-live="polite" className="mt-8 flex min-h-40 w-full flex-col items-center text-center">
-          {fase === "inicio" && (
-            <p className="text-lg text-muted-foreground">
-              {modo === "hablar" ? "Mantené apretado el botón y hablá." : "Subí un audio y te digo qué entendí."}
-            </p>
-          )}
-          {fase === "escuchando" && <TextShimmer text="Te escucho…" className="text-lg" />}
-          {fase === "pensando" && <TextShimmer text="Entendiendo lo que dijiste…" className="text-lg" />}
-          {fase === "error" && (
-            <p role="alert" className="text-lg text-destructive">
-              {error}
-            </p>
-          )}
-          {turno && (fase === "hablando" || fase === "listo") && (
-            <>
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Entendí</span>
-              <TextGenerateEffect
-                key={turno.texto}
-                staggerDuration={PALABRA_S}
-                className="mt-2 max-w-xl text-2xl leading-snug font-medium tracking-tight text-balance sm:text-3xl"
-              >
-                {turno.texto}
-              </TextGenerateEffect>
-              {turno.crudo && turno.crudo !== turno.texto && (
-                <p className="mt-4 max-w-xl text-sm text-muted-foreground">
-                  Whisper escuchó: <span className="italic">“{turno.crudo}”</span>
-                </p>
-              )}
-            </>
-          )}
-        </section>
-
-        <div className="mt-auto flex w-full flex-col items-center pt-8">
-          {modo === "hablar" ? (
-            <VoiceInput listening={fase === "escuchando"} disabled={ocupado} onStart={empezar} onStop={terminar} />
-          ) : (
-            <div className="w-full max-w-md">
-              <FileDropzone accept="audio/*" maxSizeMB={25} onUpload={(f) => procesar(f, f.name)} />
+      <AnimatedSidebarInset>
+        <header className="flex h-14 shrink-0 items-center gap-3 px-4 sm:px-6">
+          <AnimatedSidebarTrigger
+            aria-label="Mostrar u ocultar menú"
+            className="-ml-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <PanelLeft aria-hidden="true" className="size-4" />
+          </AnimatedSidebarTrigger>
+          <span className="text-sm text-muted-foreground">
+            {vista === "perfil" ? "Perfil y memoria" : memoria ? `Hablando con ${memoria.persona.nombre}` : ""}
+          </span>
+          {vista === "asistente" && (
+            <div role="tablist" aria-label="Cómo mandar el audio" className="ml-auto flex rounded-full border p-1 text-sm">
+              {(["hablar", "subir"] as const).map((m) => (
+                <button
+                  key={m}
+                  role="tab"
+                  aria-selected={modo === m}
+                  onClick={() => setModo(m)}
+                  disabled={ocupado}
+                  className={cn(
+                    "rounded-full px-3 py-1 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring/50",
+                    modo === m ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {m === "hablar" ? "Hablar" : "Subir audio"}
+                </button>
+              ))}
             </div>
           )}
-        </div>
-      </main>
-    </div>
+        </header>
+
+        {vista === "perfil" && memoria ? (
+          <Perfil
+            key={memoria.persona.id}
+            memoria={memoria}
+            personas={personas}
+            onCambiarPersona={setPersonaId}
+            onCrearPersona={async (nombre) => {
+              const p = await crearPersona(nombre)
+              setPersonas((ps) => [...ps, p])
+              setPersonaId(p.id)
+            }}
+            onGuardar={async (datos) => {
+              const m = await guardarMemoria(personaId, datos)
+              setMemoria(m)
+              setPersonas((ps) => ps.map((p) => (p.id === personaId ? m.persona : p)))
+            }}
+          />
+        ) : (
+          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center px-4 pb-10 sm:px-6">
+            <VoiceOrb
+              analyser={fase === "escuchando" ? (mic.analyser ?? voz) : voz}
+              activity={actividad}
+              colors={COLORES}
+              aria-label="Asistente"
+              className="mt-2 w-44 sm:mt-6 sm:w-56"
+            />
+
+            <section aria-live="polite" className="mt-8 flex min-h-40 w-full flex-col items-center text-center">
+              {fase === "inicio" && (
+                <p className="text-lg text-muted-foreground">
+                  {modo === "hablar" ? "Mantené apretado el botón y hablá." : "Subí un audio y te digo qué entendí."}
+                </p>
+              )}
+              {fase === "escuchando" && <TextShimmer text="Te escucho…" className="text-lg" />}
+              {fase === "pensando" && <TextShimmer text="Entendiendo lo que dijiste…" className="text-lg" />}
+              {fase === "error" && (
+                <p role="alert" className="text-lg text-destructive">
+                  {error}
+                </p>
+              )}
+
+              {turno && (fase === "hablando" || fase === "listo") && (
+                <>
+                  <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Entendí</span>
+                  <TextGenerateEffect
+                    key={textoTurno}
+                    staggerDuration={fase === "hablando" ? PALABRA_S : 0}
+                    className="mt-2 max-w-xl text-2xl leading-snug font-medium tracking-tight text-balance sm:text-3xl"
+                  >
+                    {textoTurno}
+                  </TextGenerateEffect>
+
+                  <dl className="mt-5 max-w-xl space-y-1 text-sm text-muted-foreground">
+                    {turno.crudo && turno.crudo !== textoTurno && (
+                      <div>
+                        <dt className="inline">Whisper escuchó: </dt>
+                        <dd className="inline italic line-clamp-2">“{turno.crudo}”</dd>
+                      </div>
+                    )}
+                    {referencia && (
+                      <div>
+                        <dt className="inline">Lo que dijo: </dt>
+                        <dd className="inline italic">“{referencia}”</dd>
+                      </div>
+                    )}
+                  </dl>
+
+                  {fase === "listo" && (
+                    <div className="mt-6 w-full max-w-xl">
+                      {turno.estado !== "pendiente" ? (
+                        <p className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm">
+                          {turno.estado === "validado" ? (
+                            <>
+                              <Check className="size-4 text-emerald-600" /> Validado
+                            </>
+                          ) : (
+                            <>
+                              <PenLine className="size-4 text-amber-600" /> Corregido: lo voy a recordar
+                            </>
+                          )}
+                        </p>
+                      ) : corrigiendo ? (
+                        <form
+                          className="space-y-3 text-left"
+                          onSubmit={(e) => {
+                            e.preventDefault()
+                            if (borrador.trim()) confirmar(borrador.trim())
+                          }}
+                        >
+                          <label className="block space-y-1.5">
+                            <span className="text-sm font-medium">¿Qué quisiste decir?</span>
+                            <Textarea value={borrador} onChange={(e) => setBorrador(e.target.value)} rows={3} autoFocus />
+                          </label>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="ghost" size="lg" onClick={() => setCorrigiendo(false)}>
+                              Cancelar
+                            </Button>
+                            <Button type="submit" size="lg">
+                              Guardar corrección
+                            </Button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="flex flex-col items-center gap-3">
+                          <span className="text-sm text-muted-foreground">¿Es lo que quisiste decir?</span>
+                          <div className="flex gap-3">
+                            <Button size="lg" className="h-12 px-6 text-base" onClick={() => confirmar(turno.texto)}>
+                              <Check /> Sí
+                            </Button>
+                            <Button
+                              size="lg"
+                              variant="outline"
+                              className="h-12 px-6 text-base"
+                              onClick={() => {
+                                setBorrador(turno.texto)
+                                setCorrigiendo(true)
+                              }}
+                            >
+                              <PenLine /> Corregir
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
+
+            <div className="mt-auto flex w-full flex-col items-center pt-8">
+              {modo === "hablar" ? (
+                <VoiceInput
+                  listening={fase === "escuchando" && !!mic.analyser}
+                  disabled={!personaId || fase === "pensando" || fase === "hablando" || (fase === "escuchando" && !mic.analyser)}
+                  onStart={empezar}
+                  onStop={terminar}
+                />
+              ) : (
+                <div className="w-full max-w-md">
+                  <FileDropzone accept="audio/*" maxSizeMB={25} onUpload={(f) => procesar(f, f.name)} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </AnimatedSidebarInset>
+    </AnimatedSidebarProvider>
   )
 }
