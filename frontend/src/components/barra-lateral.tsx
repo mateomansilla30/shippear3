@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { AudioLines, Check, Circle, Mic, PenLine, UserRound, X } from "lucide-react"
+import { Check, Circle, Mic, PenLine, UserRound, X } from "lucide-react"
 
 import {
   AnimatedSidebar,
@@ -17,7 +17,6 @@ import {
   AnimatedSidebarMenuItem,
   AnimatedSidebarRail,
 } from "@/components/animated-sidebar"
-import { AUDIOS_PRUEBA, type AudioPrueba } from "@/lib/audios-prueba"
 import type { Memoria, Turno } from "@/lib/api"
 
 export type Vista = "asistente" | "perfil"
@@ -32,13 +31,11 @@ type Props = {
   vista: Vista
   memoria: Memoria | null
   turnoActivo?: string
-  ocupado: boolean
   onVista: (v: Vista) => void
   onTurno: (t: Turno) => void
-  onProbar: (a: AudioPrueba) => void
 }
 
-export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, onTurno, onProbar }: Props) {
+export function BarraLateral({ vista, memoria, turnoActivo, onVista, onTurno }: Props) {
   const recientes = memoria?.historial.slice(0, 8) ?? []
   const nombre = memoria?.persona.nombre ?? "…"
 
@@ -119,29 +116,6 @@ export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, on
           </AnimatedSidebarGroupContent>
         </AnimatedSidebarGroup>
 
-        {[
-          ["Audios de prueba", AUDIOS_PRUEBA.slice(0, 4)],
-          ["Más audios", AUDIOS_PRUEBA.slice(4)],
-        ].map(([titulo, audios]) => (
-          <AnimatedSidebarGroup key={titulo as string}>
-            <AnimatedSidebarGroupLabel>{titulo as string}</AnimatedSidebarGroupLabel>
-            <AnimatedSidebarGroupContent>
-              <AnimatedSidebarMenu>
-                {(audios as AudioPrueba[]).map((a) => (
-                  <AnimatedSidebarMenuItem key={a.id}>
-                    <AnimatedSidebarMenuButton
-                      icon={<AudioLines className="size-4" />}
-                      disabled={ocupado}
-                      onSelect={() => onProbar(a)}
-                    >
-                      <span title={`${a.titulo} · ${a.detalle}`}>{a.titulo}</span>
-                    </AnimatedSidebarMenuButton>
-                  </AnimatedSidebarMenuItem>
-                ))}
-              </AnimatedSidebarMenu>
-            </AnimatedSidebarGroupContent>
-          </AnimatedSidebarGroup>
-        ))}
       </AnimatedSidebarContent>
 
       <AnimatedSidebarFooter className="border-none p-3">

@@ -12,6 +12,7 @@ import {
 import { BarraLateral, type Vista } from "@/components/barra-lateral"
 import { Perfil } from "@/components/perfil"
 import { PanelAudiosPrueba } from "@/components/panel-audios-prueba"
+import { OndaAudio } from "@/components/onda-audio"
 import { VoiceOrb } from "@/components/voice-orb"
 import { VoiceInput } from "@/components/voice-input"
 import { TextShimmer } from "@/components/text-shimmer"
@@ -53,6 +54,7 @@ export default function Home() {
   const [modo, setModo] = useState<"hablar" | "subir">("hablar")
   const [turno, setTurno] = useState<Turno | null>(null)
   const [referencia, setReferencia] = useState<string | null>(null)
+  const [audioActual, setAudioActual] = useState<AudioPrueba | null>(null) // audio de prueba en curso
   const [original, setOriginal] = useState<string | null>(null) // audio que se mandó, para volver a escucharlo
   const [sonando, setSonando] = useState(false)
   const [error, setError] = useState("")
@@ -116,6 +118,9 @@ export default function Home() {
       }
       audio.onended = fin
       audio.onerror = fin
+      // Tope: si el audio se traba (red lenta, servidor), no deja la pantalla bloqueada.
+      audio.onloadedmetadata = () => setTimeout(fin, (audio.duration || 30) * 1000 + 3000)
+      setTimeout(fin, 60000)
       // Si el navegador crea el contexto suspendido, el audio pasaría por él en silencio.
       // Lo activamos y, si no se puede, reproducimos directo (sin orbe, pero se escucha).
       // resume() puede quedar pendiente para siempre si el navegador no lo permite: le damos 300 ms.
@@ -163,6 +168,7 @@ export default function Home() {
     try {
       await mic.start()
       setTurno(null)
+      setAudioActual(null)
       setReferencia(null)
       setFase("escuchando")
     } catch {
@@ -180,6 +186,7 @@ export default function Home() {
   async function probar(a: AudioPrueba) {
     setVista("asistente")
     setTurno(null)
+    setAudioActual(a)
     setReferencia(a.referencia)
     const ruta = urlAudioPrueba(a.id)
     const wav = await fetch(ruta).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
@@ -222,10 +229,8 @@ export default function Home() {
         vista={vista}
         memoria={memoria}
         turnoActivo={turno?.id}
-        ocupado={ocupado}
         onVista={setVista}
         onTurno={verTurno}
-        onProbar={probar}
       />
 
       <AnimatedSidebarInset>
@@ -306,7 +311,13 @@ export default function Home() {
                   {modo === "hablar" ? "Tocá el botón y hablá tranquilo. Cuando termines, tocalo de nuevo." : "Subí un audio y te digo qué entendí."}
                 </p>
               )}
-              {fase === "escuchando" && <TextShimmer text="Te escucho…" className="text-lg" />}
+              {fase === "escuchando" && (
+                <div className="flex w-full flex-col items-center gap-1">
+                  <TextShimmer text="Escuchando…" className="text-lg" />
+                  {audioActual && <span className="text-sm text-muted-foreground">{audioActual.titulo}</span>}
+                  <OndaAudio analyser={mic.analyser ?? voz} className="mt-3" />
+                </div>
+              )}
               {fase === "pensando" && <TextShimmer text="Entendiendo lo que dijiste…" className="text-lg" />}
               {fase === "error" && (
                 <p role="alert" className="text-lg text-destructive">
@@ -364,7 +375,7 @@ export default function Home() {
                     </div>
                   )}
 
-                  {fase === "listo" && (
+                  {(fase === "listo" || fase === "hablando") && (
                     <div className="mt-6 w-full max-w-xl">
                       {turno.estado !== "pendiente" ? (
                         <p className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm">
@@ -420,6 +431,12 @@ export default function Home() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {(fase === "listo" || fase === "hablando") && !corrigiendo && (
+                    <div className="mt-6 flex w-full justify-center">
+                      <PanelAudiosPrueba compacto actual={audioActual?.id} onProbar={probar} />
                     </div>
                   )}
                 </>

@@ -6,9 +6,46 @@ import { ChevronDown, Play } from "lucide-react"
 import { AUDIOS_PRUEBA, type AudioPrueba } from "@/lib/audios-prueba"
 import { cn } from "@/lib/utils"
 
+type Props = {
+  onProbar: (a: AudioPrueba) => void
+  disabled?: boolean
+  compacto?: boolean // debajo de un resultado: una fila para pasar al siguiente audio
+  actual?: string
+}
+
 // Lo primero que se ve en el asistente: audios reales para probar sin tener que hablar.
-export function PanelAudiosPrueba({ onProbar, disabled }: { onProbar: (a: AudioPrueba) => void; disabled?: boolean }) {
+export function PanelAudiosPrueba({ onProbar, disabled, compacto, actual }: Props) {
   const [todos, setTodos] = useState(false)
+
+  if (compacto) {
+    return (
+      <section aria-labelledby="otro-audio" className="w-full max-w-xl text-left">
+        <h2 id="otro-audio" className="text-sm font-medium text-muted-foreground">
+          Probá otro audio
+        </h2>
+        <div className="mt-2 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:thin]">
+          {AUDIOS_PRUEBA.map((a) => (
+            <button
+              key={a.id}
+              type="button"
+              disabled={disabled}
+              aria-current={a.id === actual || undefined}
+              onClick={() => onProbar(a)}
+              title={a.detalle}
+              className={cn(
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm outline-none transition-colors",
+                "hover:border-[#0047fc]/40 hover:bg-[#dce6ff]/40 focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50",
+                a.id === actual && "border-[#0047fc] bg-[#dce6ff]/60",
+              )}
+            >
+              <Play className="size-3 fill-current text-[#0047fc]" />
+              {a.titulo}
+            </button>
+          ))}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <section aria-labelledby="titulo-audios" className="w-full max-w-xl text-left">
