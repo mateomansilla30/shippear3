@@ -41,3 +41,10 @@ FFMPEG = os.getenv("FFMPEG")  # ruta a ffmpeg si no está en el PATH
 NOTA_VOZ_BITRATE = os.getenv("NOTA_VOZ_BITRATE", "32k")
 
 SALIDAS = CARPETA / "salidas"
+
+# --- Publicación ---
+# URL pública del backend (p. ej. https://api.vozclara.com). Si está, se usa para armar los audio_url; si no, se usa la
+# URL del pedido, que detrás de un proxy https puede salir como http y el navegador la bloquearía.
+URL_PUBLICA = (os.getenv("URL_PUBLICA") or "").rstrip("/") or None
+# Audios de prueba de S-DiverSe que el front pide al backend. No van al repo (licencia): se copian a mano.
+AUDIOS_PRUEBA = CARPETA / "audios_prueba"

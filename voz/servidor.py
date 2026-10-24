@@ -94,7 +94,8 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
     if t.wav:
         AUDIOS.mkdir(parents=True, exist_ok=True)
         (AUDIOS / f"{turno_id}.wav").write_bytes(t.wav)
-        audio_url = f"{str(request.base_url).rstrip('/')}/audio/{turno_id}.wav"
+        base = config.URL_PUBLICA or str(request.base_url).rstrip("/")
+        audio_url = f"{base}/audio/{turno_id}.wav"
     nuevo = {
         "id": turno_id, "texto": t.texto_a_decir, "audio_url": audio_url, "fecha": memoria.ahora(),
         "estado": "pendiente",
@@ -120,12 +121,23 @@ def api_validar(p: PedidoValidar):
         raise HTTPException(404, f"No existe el turno {p.turno_id}")
 
 
-@app.get("/audio/{nombre}")
-def api_audio(nombre: str):
-    ruta = (AUDIOS / nombre).resolve()
-    if ruta.parent != AUDIOS.resolve() or ruta.suffix != ".wav" or not ruta.exists():
+def _wav_de(carpeta, nombre: str) -> FileResponse:
+    ruta = (carpeta / nombre).resolve()
+    if ruta.parent != carpeta.resolve() or ruta.suffix != ".wav" or not ruta.exists():
         raise HTTPException(404, "No existe ese audio")
     return FileResponse(ruta, media_type="audio/wav")
+
+
+@app.get("/audio/{nombre}")
+def api_audio(nombre: str):
+    """La voz de un turno (a lo que apunta audio_url)."""
+    return _wav_de(AUDIOS, nombre)
+
+
+@app.get("/audios-prueba/{nombre}")
+def api_audio_prueba(nombre: str):
+    """Audios de prueba de S-DiverSe para la demo. Se copian a mano a voz/audios_prueba/ (no están en el repo)."""
+    return _wav_de(config.AUDIOS_PRUEBA, nombre)
 
 
 # --- Voz suelta (para el agente y WhatsApp) ------------------------------------

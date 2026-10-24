@@ -33,6 +33,12 @@ export type Editable = Pick<Memoria, "persona" | "contactos" | "vocabulario" | "
 const API_URL = process.env.NEXT_PUBLIC_API_URL
 export const HAY_BACK = !!API_URL
 
+// Los audios de prueba de S-DiverSe no están en el repo (licencia). Con back, los sirve el back desde
+// voz/audios_prueba/ (copiados a mano en el servidor); sin back, se buscan en public/audios-prueba/.
+export function urlAudioPrueba(id: string) {
+  return API_URL ? `${API_URL}/audios-prueba/${id}.wav` : `/audios-prueba/${id}.wav`
+}
+
 async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${API_URL}${ruta}`, init)
   if (!r.ok) throw new Error(`El servidor respondió ${r.status}`)

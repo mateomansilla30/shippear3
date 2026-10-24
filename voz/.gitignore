@@ -5,3 +5,4 @@ __pycache__/
 *.wav
 *.ogg
 datos/
+audios_prueba/

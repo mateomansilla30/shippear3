@@ -26,6 +26,7 @@ import {
   guardarMemoria,
   listarPersonas,
   obtenerMemoria,
+  urlAudioPrueba,
   validar,
   type Memoria,
   type Persona,
@@ -179,10 +180,10 @@ export default function Home() {
     setVista("asistente")
     setTurno(null)
     setReferencia(a.referencia)
-    const ruta = `/audios-prueba/${a.id}.wav`
+    const ruta = urlAudioPrueba(a.id)
     const wav = await fetch(ruta).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
     if (!wav && HAY_BACK) {
-      setError(`Falta el archivo public${ruta}. Copialo desde Drive.`)
+      setError(`El servidor no tiene el audio ${a.id}.wav. Copialo a voz/audios_prueba/ en el servidor.`)
       return setFase("error")
     }
     if (wav) {
