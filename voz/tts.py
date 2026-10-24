@@ -73,11 +73,22 @@ def _gemini(texto: str, voz: str | None, estilo: str | None) -> bytes:
 _ELEVEN_CON_IDIOMA = {"eleven_flash_v2_5", "eleven_turbo_v2_5"}  # modelos que aceptan language_code
 
 
-def _elevenlabs(texto: str, voz: str | None, estilo: str | None) -> bytes:
-    """ElevenLabs. `voz` es un voice_id (de la cuenta o de la biblioteca pública). `estilo` no aplica."""
-    import httpx
-    if not config.ELEVENLABS_API_KEY:
-        raise RuntimeError("Falta ELEVENLABS_API_KEY en voz/.env")
+_ELEVEN_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+_eleven_http = None
+
+
+def _eleven_cliente():
+    """Una sola conexión reutilizada con ElevenLabs: evita abrir una conexión segura nueva en cada frase."""
+    global _eleven_http
+    if _eleven_http is None:
+        import httpx
+        if not config.ELEVENLABS_API_KEY:
+            raise RuntimeError("Falta ELEVENLABS_API_KEY en voz/.env")
+        _eleven_http = httpx.Client(headers={"xi-api-key": config.ELEVENLABS_API_KEY}, timeout=config.TTS_TIMEOUT_S)
+    return _eleven_http
+
+
+def _eleven_cuerpo(texto: str) -> dict:
     cuerpo = {
         "text": texto,
         "model_id": config.TTS_ELEVEN_MODELO,
@@ -85,12 +96,46 @@ def _elevenlabs(texto: str, voz: str | None, estilo: str | None) -> bytes:
     }
     if config.TTS_ELEVEN_MODELO in _ELEVEN_CON_IDIOMA:
         cuerpo["language_code"] = "es"
-    r = httpx.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz or config.TTS_ELEVEN_VOZ}",
-                   params={"output_format": "pcm_24000"}, json=cuerpo,
-                   headers={"xi-api-key": config.ELEVENLABS_API_KEY}, timeout=config.TTS_TIMEOUT_S)
+    return cuerpo
+
+
+def _elevenlabs(texto: str, voz: str | None, estilo: str | None) -> bytes:
+    """ElevenLabs. `voz` es un voice_id (de la cuenta o de la biblioteca pública). `estilo` no aplica."""
+    r = _eleven_cliente().post(f"{_ELEVEN_URL}/{voz or config.TTS_ELEVEN_VOZ}",
+                               params={"output_format": "pcm_24000"}, json=_eleven_cuerpo(texto))
     if r.status_code != 200:
         raise RuntimeError(f"ElevenLabs respondió {r.status_code}: {r.text[:300]}")
     return _a_wav(r.content)  # PCM 24 kHz 16 bit mono → WAV
+
+
+def abrir_stream_elevenlabs(texto: str, voz: str | None = None):
+    """Abre el streaming de ElevenLabs y devuelve (iterador de fragmentos MP3, cerrar).
+
+    Si ElevenLabs responde con error, lanza RuntimeError ANTES de entregar nada, así quien llama puede usar el
+    respaldo. La voz empieza a sonar en el navegador con los primeros fragmentos, sin esperar el audio entero.
+    """
+    texto = " ".join(str(texto).split())
+    if not texto:
+        raise ValueError("No hay texto para decir")
+    cliente = _eleven_cliente()
+    pedido = cliente.build_request("POST", f"{_ELEVEN_URL}/{voz or config.TTS_ELEVEN_VOZ}/stream",
+                                   params={"output_format": "mp3_44100_64"}, json=_eleven_cuerpo(texto))
+    r = cliente.send(pedido, stream=True)
+    if r.status_code != 200:
+        detalle = r.read()[:300]
+        r.close()
+        raise RuntimeError(f"ElevenLabs respondió {r.status_code}: {detalle!r}")
+    ultimo_proveedor.update(nombre="elevenlabs", errores=[])
+    return r.iter_bytes(), r.close
+
+
+def calentar() -> None:
+    """La primera frase con una voz tarda varios segundos más (ElevenLabs la carga): se la pide al arrancar."""
+    if config.TTS_PROVEEDOR == "elevenlabs" and config.ELEVENLABS_API_KEY:
+        try:
+            _elevenlabs("Hola.", None, None)
+        except Exception:
+            pass
 
 
 _PROVEEDORES = {"elevenlabs": _elevenlabs, "openai": _openai, "gemini": _gemini}

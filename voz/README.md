@@ -62,7 +62,7 @@ Abrí http://localhost:8000/docs para probar cada endpoint desde el navegador (s
 | `POST /turno` | `audio` (archivo), `persona_id` | Turno: `id`, `texto`, `audio_url`, `fecha`, `estado`; y para depurar: `texto_asr`, `confianza`, `nivel`, `hipotesis`, `correccion_usada`, `tiempos_ms` |
 | `POST /validar` | JSON `{"persona_id", "turno_id", "texto_final"}` | La memoria. Si el texto cambió, guarda la corrección |
 | `POST /enviar` | JSON `{"persona_id", "turno_id", "destino"?}` | Manda el texto final como nota de voz por WhatsApp (Kapso). Si falla, el motivo viene en `detail` |
-| `GET /audio/{id}.wav` | — | La voz de un turno (lo que apunta `audio_url`) |
+| `GET /voz/{persona_id}/{turno_id}` | — | La voz de un turno (a lo que apunta `audio_url`). La primera vez se genera en streaming y se guarda una copia |
 
 **Para el agente y WhatsApp:**
 
@@ -141,8 +141,10 @@ Palancas para bajar la latencia, de mayor a menor efecto:
    nunca se lo espera más de `ASR_ESPERA_ALTERNATIVA_S` (1 s) después de tener la principal.
 2. **Respuestas cortas** para el TTS: el tiempo de la voz crece con el largo del texto.
 3. **Audio en WAV o webm corto** desde la web: Groq factura mínimo 10 s por pedido pero procesa rápido audios cortos.
-4. **Voz en streaming** (próximo paso): OpenAI puede mandar el audio a medida que lo genera, así la persona empieza
-   a escuchar en menos de 1 s en lugar de esperar los ~2 s completos.
+4. **Voz en streaming (hecho):** `/turno` devuelve el texto sin esperar la voz; el navegador pide `audio_url` y
+   ElevenLabs la manda a medida que la genera. Medido: el texto llega en ~2,3 s y la voz empieza a sonar ~0,4 s
+   después (antes: texto y voz juntos recién después de generar el audio completo). La conexión con ElevenLabs se
+   reutiliza y la voz se "calienta" al arrancar el servidor, para que el primer turno no tarde de más.
 
 ## Notas
 

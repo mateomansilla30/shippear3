@@ -8,9 +8,11 @@ Probar sin front: http://localhost:8000/docs
 """
 from __future__ import annotations
 
+import threading
+
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 import config
@@ -23,6 +25,8 @@ from nota_voz import a_nota_de_voz, ruta_ffmpeg
 from pipeline import Turno, hablar, turno as correr_turno
 
 app = FastAPI(title="Voz Clara")
+# Al arrancar se "calienta" la voz en segundo plano: el primer uso de una voz de ElevenLabs tarda varios segundos.
+threading.Thread(target=tts.calentar, daemon=True).start()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 AUDIOS = memoria.DATOS / "audios"
 
@@ -110,15 +114,12 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         t = _turno_demo(texto_demo.strip(), m, usada)
     else:
         vocabulario = memoria.vocabulario_para_asr(m) if config.ASR_USAR_VOCABULARIO else None
+        # Sin voz acá: el texto vuelve enseguida y la voz se genera en streaming cuando el navegador pide audio_url.
         t = correr_turno(datos, audio.filename or "audio.webm", interpretar=interpretar,
-                         vocabulario=vocabulario, alternativa=alternativa)
+                         vocabulario=vocabulario, alternativa=alternativa, sintetizar_voz=False)
     turno_id = memoria.nuevo_turno_id()
-    audio_url = None
-    if t.wav:
-        AUDIOS.mkdir(parents=True, exist_ok=True)
-        (AUDIOS / f"{turno_id}.wav").write_bytes(t.wav)
-        base = config.URL_PUBLICA or str(request.base_url).rstrip("/")
-        audio_url = f"{base}/audio/{turno_id}.wav"
+    base = config.URL_PUBLICA or str(request.base_url).rstrip("/")
+    audio_url = f"{base}/voz/{persona_id}/{turno_id}" if t.texto_a_decir.strip() else None
     nuevo = {
         "id": turno_id, "texto": t.texto_a_decir, "audio_url": audio_url, "fecha": memoria.ahora(),
         "estado": "pendiente",
@@ -127,11 +128,51 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         "correccion_usada": usada.get("c"), "tiempos_ms": t.tiempos_ms,
         # De dónde salió el texto: memoria, llm o transcripción; y si el intérprete está seguro
         "interpretacion": {k: v for k, v in (usada.get("info") or {}).items() if k != "correccion"},
-        # Qué proveedor de voz se usó y, si el principal falló, por qué (para depurar desde el navegador)
-        "voz": {"proveedor": tts.ultimo_proveedor.get("nombre"), "errores": tts.ultimo_proveedor.get("errores")}
-        if t.wav else None,
     }
     return memoria.agregar_turno(persona_id, nuevo)
+
+
+@app.get("/voz/{persona_id}/{turno_id}")
+def api_voz(persona_id: str, turno_id: str):
+    """La voz de un turno. La primera vez se genera en streaming (empieza a sonar con los primeros fragmentos) y se
+    guarda una copia; las siguientes (repetir, enviar por WhatsApp) usan la copia."""
+    for ext, tipo in ((".mp3", "audio/mpeg"), (".wav", "audio/wav")):
+        guardado = AUDIOS / f"{turno_id}{ext}"
+        if guardado.exists():
+            return FileResponse(guardado, media_type=tipo)
+    m = _memoria_o_404(persona_id)
+    turno = next((t for t in m.get("historial", []) if t["id"] == turno_id), None)
+    if turno is None:
+        raise HTTPException(404, f"No existe el turno {turno_id}")
+    AUDIOS.mkdir(parents=True, exist_ok=True)
+
+    if config.TTS_PROVEEDOR == "elevenlabs":
+        try:
+            fragmentos, cerrar = tts.abrir_stream_elevenlabs(turno["texto"])
+        except Exception:
+            fragmentos = None  # se usa el respaldo de abajo
+        if fragmentos is not None:
+            def emitir():
+                partes, completo = [], False
+                try:
+                    for parte in fragmentos:
+                        partes.append(parte)
+                        yield parte
+                    completo = True
+                finally:
+                    cerrar()
+                    if completo:  # solo se guarda si llegó entero
+                        tmp = AUDIOS / f"{turno_id}.mp3.tmp"
+                        tmp.write_bytes(b"".join(partes))
+                        tmp.replace(AUDIOS / f"{turno_id}.mp3")
+            return StreamingResponse(emitir(), media_type="audio/mpeg")
+
+    try:  # sin streaming o si ElevenLabs falló: audio completo con el proveedor que responda
+        wav = tts.sintetizar(turno["texto"])
+    except RuntimeError as e:
+        raise HTTPException(424, str(e))
+    (AUDIOS / f"{turno_id}.wav").write_bytes(wav)
+    return Response(wav, media_type="audio/wav")
 
 
 def _turno_demo(texto_demo: str, m: dict, usada: dict) -> Turno:
@@ -141,8 +182,7 @@ def _turno_demo(texto_demo: str, m: dict, usada: dict) -> Turno:
     usada["info"] = {"fuente": "demo", "seguro": True, "memoria": bool(correccion)}
     tr = Transcripcion(texto=texto_demo, texto_crudo=texto_demo, hipotesis=[texto_demo], confianza=1.0,
                        nivel="alta", senales={"demo": True})
-    wav, _, tiempos = hablar(texto)
-    return Turno(transcripcion=tr, texto_a_decir=texto, wav=wav, tiempos_ms=tiempos)
+    return Turno(transcripcion=tr, texto_a_decir=texto, tiempos_ms={})
 
 
 class PedidoValidar(BaseModel):
@@ -175,10 +215,10 @@ def api_enviar(p: PedidoEnviar):
         raise HTTPException(404, f"No existe el turno {p.turno_id}")
     texto = turno.get("texto_final") or turno["texto"]
     # Si el texto no cambió, se reutiliza la voz ya generada en el turno (más rápido, sin gastar otra síntesis)
-    wav_previo = AUDIOS / f"{p.turno_id}.wav"
+    previo = next((f for f in (AUDIOS / f"{p.turno_id}.mp3", AUDIOS / f"{p.turno_id}.wav") if f.exists()), None)
     try:
-        wav = wav_previo.read_bytes() if wav_previo.exists() and texto == turno["texto"] else tts.sintetizar(texto)
-        mensaje_id = kapso.enviar_nota_de_voz(p.destino or config.KAPSO_DESTINO, a_nota_de_voz(wav))
+        voz = previo.read_bytes() if previo and texto == turno["texto"] else tts.sintetizar(texto)
+        mensaje_id = kapso.enviar_nota_de_voz(p.destino or config.KAPSO_DESTINO, a_nota_de_voz(voz))
     except RuntimeError as e:  # Kapso, ffmpeg o las voces (ErrorKapso también es RuntimeError)
         # 424 y no 502: los proxies (Easypanel/Traefik) reemplazan los 502 por su propia página de error y el front
         # pierde el motivo. Con 424 el mensaje llega al navegador.
