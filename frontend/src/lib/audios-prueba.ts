@@ -1,5 +1,6 @@
 // Audios de test de S-DiverSe para la demo de la app (hablantes que ningún modelo vio al entrenar).
-// Destacados: dos donde la memoria aprende de la corrección, uno largo y difícil, y uno de Parkinson.
+// Destacados: uno de inteligibilidad baja (simulado, ver `demo`), dos donde la memoria aprende de la corrección
+// y uno largo y difícil. El de Parkinson quedó quinto.
 // Los WAV están en frontend/public/audios-prueba/<id>.wav (con permiso de los autores de S-DiverSe), cortados con
 // los tiempos de data/s-diverse.tsv del repo del dataset. Los 4 primeros son los destacados para la demo.
 // `texto` es lo que devolvió el pipeline en vivo (para el modo sin back).
@@ -16,16 +17,25 @@ export type AudioPrueba = {
 
 export const AUDIOS_PRUEBA: AudioPrueba[] = [
   {
+    id: "ALS_M06_08_01",
+    titulo: "ELA · no está seguro",
+    detalle: "10 s · inteligibilidad baja",
+    referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
+    // Simulado: con este audio Whisper real entiende "bien muy bien y en octubre" (confianza baja).
+    texto: "Bien, muy bien de ánimo. Con fascinaciones de los hombros, pero bien.",
+    demo: true,
+  },
+  {
     id: "STROKE_F01_02",
     titulo: "ACV · aprende una palabra",
-    detalle: "8 s · corregí \"parecia\" por \"paresia\" y probá de nuevo",
+    detalle: "8 s · inteligibilidad media-baja",
     referencia: "Y, eh, tuve como secuela una paresia bilateral derecha",
     texto: "tuve como secuela una parecia bilateral derecha",
   },
   {
     id: "ALS_M02_02",
     titulo: "ELA · aprende una frase",
-    detalle: "7 s · corregí \"productivo\" y \"un buen\" y probá de nuevo",
+    detalle: "7 s · inteligibilidad media",
     referencia: "Pues diría que soy inteligente, proactivo y que soy muy cabezón.",
     texto: "Pues diría que soy inteligente, productivo y que soy un buen cabezón.",
   },
