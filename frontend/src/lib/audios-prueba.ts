@@ -1,6 +1,5 @@
 // Audios de test de S-DiverSe para la demo de la app (hablantes que ningún modelo vio al entrenar).
-// Elegidos con el pipeline en vivo (Groq + reglas): uno donde la confianza sale baja y la app debería preguntar,
-// dos donde Whisper cambia palabras con confianza alta y la memoria aprende de la corrección, y uno largo y difícil.
+// Destacados: dos donde la memoria aprende de la corrección, uno largo y difícil, y uno de Parkinson.
 // Los WAV están en frontend/public/audios-prueba/<id>.wav (con permiso de los autores de S-DiverSe), cortados con
 // los tiempos de data/s-diverse.tsv del repo del dataset. Los 4 primeros son los destacados para la demo.
 // `texto` es lo que devolvió el pipeline en vivo (para el modo sin back).
@@ -16,15 +15,6 @@ export type AudioPrueba = {
 }
 
 export const AUDIOS_PRUEBA: AudioPrueba[] = [
-  {
-    id: "ALS_M06_08_01",
-    titulo: "ELA · no está seguro",
-    detalle: "10 s · inteligibilidad baja",
-    referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
-    // Simulado: con este audio Whisper real entiende "bien muy bien y en octubre" (confianza baja).
-    texto: "Bien, muy bien de ánimo. Con fascinaciones de los hombros, pero bien.",
-    demo: true,
-  },
   {
     id: "STROKE_F01_02",
     titulo: "ACV · aprende una palabra",
@@ -47,6 +37,13 @@ export const AUDIOS_PRUEBA: AudioPrueba[] = [
       "Porque no me entiende muchas veces. Me olvido y hablo rápido, antes me emocionaba, porque yo lloraba porque ella no me entendía. Ahora uso una aplicación que es de un argentino, Matteo Salvatto, se llama \"Háblalo\", la uso con ella para hacer la tarea, por ejemplo.",
     texto:
       "Pues no me entiendo muchas veces. Pues me olvido de hablar rápido. Antes me emocionaba porque yo no me entendía. Ahora uso una aplicación que es un argentino, Mateo Zabato, que no habla o no.",
+  },
+  {
+    id: "PARKINSON_M01_05",
+    titulo: "Parkinson · Y luego pues, me…",
+    detalle: "6 s · inteligibilidad alta",
+    referencia: "Y luego pues, me suelo ir a rehabilitación a una asociación de párkinson.",
+    texto: "Y luego pues me suelo ir a rehabilitación, a la Asociación de Parkinson.",
   },
   {
     id: "STROKE_M02_01",
@@ -152,12 +149,5 @@ export const AUDIOS_PRUEBA: AudioPrueba[] = [
     detalle: "4 s · inteligibilidad alta",
     referencia: "Entonces hacer planes es un poco aleatorio.",
     texto: "Entonces hacer planes es un poco aleatorio.",
-  },
-  {
-    id: "PARKINSON_M01_05",
-    titulo: "Parkinson · Y luego pues, me…",
-    detalle: "6 s · inteligibilidad alta",
-    referencia: "Y luego pues, me suelo ir a rehabilitación a una asociación de párkinson.",
-    texto: "Y luego pues me suelo ir a rehabilitación, a la Asociación de Parkinson.",
   },
 ]
