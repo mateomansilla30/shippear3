@@ -11,6 +11,7 @@ import {
 } from "@/components/animated-sidebar"
 import { BarraLateral, type Vista } from "@/components/barra-lateral"
 import { Perfil } from "@/components/perfil"
+import { PanelAudiosPrueba } from "@/components/panel-audios-prueba"
 import { VoiceOrb } from "@/components/voice-orb"
 import { VoiceInput } from "@/components/voice-input"
 import { TextShimmer } from "@/components/text-shimmer"
@@ -281,7 +282,7 @@ export default function Home() {
             {/* Grande mientras espera o escucha; cuando hay respuesta sube y se achica para dejarle lugar. */}
             <motion.div
               initial={false}
-              animate={turno ? { width: 128, marginTop: 8 } : { width: 208, marginTop: 40 }}
+              animate={turno ? { width: 128, marginTop: 8 } : { width: 176, marginTop: 16 }}
               transition={reducirMovimiento ? { duration: 0 } : { type: "spring", stiffness: 160, damping: 24 }}
               className="shrink-0"
             >
@@ -295,6 +296,11 @@ export default function Home() {
             </motion.div>
 
             <section aria-live="polite" className="mt-6 flex min-h-40 w-full flex-col items-center text-center">
+              {(fase === "inicio" || fase === "error") && !turno && (
+                <div className="order-last mt-6 w-full flex justify-center">
+                  <PanelAudiosPrueba onProbar={probar} />
+                </div>
+              )}
               {fase === "inicio" && (
                 <p className="text-lg text-muted-foreground">
                   {modo === "hablar" ? "Tocá el botón y hablá tranquilo. Cuando termines, tocalo de nuevo." : "Subí un audio y te digo qué entendí."}
