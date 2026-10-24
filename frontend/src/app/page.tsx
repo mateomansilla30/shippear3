@@ -184,7 +184,7 @@ export default function Home() {
     const ruta = urlAudioPrueba(a.id)
     const wav = await fetch(ruta).then((r) => (r.ok ? r.blob() : null)).catch(() => null)
     if (!wav && HAY_BACK) {
-      setError(`El servidor no tiene el audio ${a.id}.wav. Copialo a voz/audios_prueba/ en el servidor.`)
+      setError(`No encontré el audio ${a.id}.wav en frontend/public/audios-prueba/.`)
       return setFase("error")
     }
     if (wav) {
