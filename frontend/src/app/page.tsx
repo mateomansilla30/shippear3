@@ -297,7 +297,7 @@ export default function Home() {
             <section aria-live="polite" className="mt-6 flex min-h-40 w-full flex-col items-center text-center">
               {fase === "inicio" && (
                 <p className="text-lg text-muted-foreground">
-                  {modo === "hablar" ? "Mantené apretado el botón y hablá." : "Subí un audio y te digo qué entendí."}
+                  {modo === "hablar" ? "Tocá el botón y hablá tranquilo. Cuando termines, tocalo de nuevo." : "Subí un audio y te digo qué entendí."}
                 </p>
               )}
               {fase === "escuchando" && <TextShimmer text="Te escucho…" className="text-lg" />}

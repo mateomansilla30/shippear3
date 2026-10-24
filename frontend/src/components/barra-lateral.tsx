@@ -119,24 +119,29 @@ export function BarraLateral({ vista, memoria, turnoActivo, ocupado, onVista, on
           </AnimatedSidebarGroupContent>
         </AnimatedSidebarGroup>
 
-        <AnimatedSidebarGroup>
-          <AnimatedSidebarGroupLabel>Audios de prueba</AnimatedSidebarGroupLabel>
-          <AnimatedSidebarGroupContent>
-            <AnimatedSidebarMenu>
-              {AUDIOS_PRUEBA.map((a) => (
-                <AnimatedSidebarMenuItem key={a.id}>
-                  <AnimatedSidebarMenuButton
-                    icon={<AudioLines className="size-4" />}
-                    disabled={ocupado}
-                    onSelect={() => onProbar(a)}
-                  >
-                    {a.titulo}
-                  </AnimatedSidebarMenuButton>
-                </AnimatedSidebarMenuItem>
-              ))}
-            </AnimatedSidebarMenu>
-          </AnimatedSidebarGroupContent>
-        </AnimatedSidebarGroup>
+        {[
+          ["Audios de prueba", AUDIOS_PRUEBA.slice(0, 4)],
+          ["Más audios", AUDIOS_PRUEBA.slice(4)],
+        ].map(([titulo, audios]) => (
+          <AnimatedSidebarGroup key={titulo as string}>
+            <AnimatedSidebarGroupLabel>{titulo as string}</AnimatedSidebarGroupLabel>
+            <AnimatedSidebarGroupContent>
+              <AnimatedSidebarMenu>
+                {(audios as AudioPrueba[]).map((a) => (
+                  <AnimatedSidebarMenuItem key={a.id}>
+                    <AnimatedSidebarMenuButton
+                      icon={<AudioLines className="size-4" />}
+                      disabled={ocupado}
+                      onSelect={() => onProbar(a)}
+                    >
+                      <span title={`${a.titulo} · ${a.detalle}`}>{a.titulo}</span>
+                    </AnimatedSidebarMenuButton>
+                  </AnimatedSidebarMenuItem>
+                ))}
+              </AnimatedSidebarMenu>
+            </AnimatedSidebarGroupContent>
+          </AnimatedSidebarGroup>
+        ))}
       </AnimatedSidebarContent>
 
       <AnimatedSidebarFooter className="border-none p-3">
