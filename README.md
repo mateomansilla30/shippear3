@@ -18,19 +18,18 @@ Muchas pueden escribir, pero no es lo mismo. Escribir es lento, saca a la person
 
 ## Cómo funciona
 
-Flujo de un turno:
+Flujo de un turno, como funciona hoy en la app:
 
-1. **La persona habla.** Botón de mantener apretado, para no cortar en las pausas largas.
-2. **ASR:** Whisper transcribe el audio. Puede devolver también hipótesis alternativas y una confianza (`avg_logprob`).
-3. **LLM corrector:** reconstruye lo que la persona quiso decir (ej.: "kero ablar co maia" → "quiero hablar con María"). Antes, unas reglas borran las repeticiones que Whisper inventó.
-4. **Agente con memoria:** completa con lo que sabe de la persona y decide según su confianza:
-   - **Alta:** habla o actúa directamente.
-   - **Media:** confirma ("¿Querés mandarle un mensaje a María?").
-   - **Baja:** ofrece 2 o 3 opciones para tocar.
-5. **Voz:** Gemini Flash TTS dice el texto final con voz clara.
-6. **Validación:** la persona confirma o corrige (botón grande de sí/no u opciones). Lo validado se guarda en la memoria.
+1. **La persona habla.** Toca el botón para empezar y lo vuelve a tocar para terminar: la grabación nunca se corta sola, y mantener apretado no sirve con poca precisión motora. Si el micrófono no capta sonido, la app avisa en vez de mandar silencio.
+2. **Transcripción:** Groq transcribe con `whisper-large-v3-turbo` y, en paralelo, con `whisper-large-v3` como segunda hipótesis.
+3. **Reglas anti-alucinación:** borran las repeticiones que Whisper inventa (las mismas de la evaluación).
+4. **Confianza (0 a 1):** combina la seguridad de Whisper, el acuerdo entre las dos hipótesis, la probabilidad de silencio y cuánto borraron las reglas. Detecta bien cuando Whisper se pierde, pero no las palabras cambiadas en frases que suenan bien: por eso la persona valida.
+5. **Interpretación:** si la memoria de la persona tiene una corrección parecida, se usa. Si no, y la confianza no es baja, un LLM (`gpt-4.1-mini`) corrige errores de reconocimiento con sus contactos, vocabulario y correcciones ("kero ablar co maia" → "Quiero hablar con María"). Con confianza baja no adivina.
+6. **Voz:** ElevenLabs la dice con una voz de acento argentino (Valeria). El texto aparece apenas está listo y la voz empieza a sonar ~0,4 s después, en streaming.
+7. **Validación:** la persona confirma o corrige. Lo corregido se guarda en su memoria.
+8. **WhatsApp:** la app pregunta "¿Lo mando como audio por WhatsApp?" y, si dice que sí, lo manda como nota de voz.
 
-La idea es preguntar antes que equivocarse en silencio, con respuestas cortas y voz pausada.
+La idea es preguntar antes que equivocarse en silencio, con respuestas cortas y voz pausada. La parte de decidir entre decir, confirmar u ofrecer opciones según la confianza está programada en `agente/` pero todavía no conectada (ver [Estado](#estado)).
 
 ---
 
@@ -42,20 +41,27 @@ Memoria por persona, persistente (JSON o SQLite alcanza para el hackatón):
 - **Vocabulario propio:** medicamentos, lugares, frases que repite.
 - **Correcciones validadas:** pares "Whisper escribió X, la persona quiso decir Y".
 
-**Mejora con el uso, sin reentrenar.** En cada turno se buscan las correcciones validadas más parecidas (por similitud de texto o fonética) y se le pasan al LLM como ejemplos, junto con los contactos y el vocabulario. Funciona desde la primera validación.
+**Mejora con el uso, sin reentrenar.** En cada turno se buscan las correcciones validadas más parecidas y se le pasan al LLM como ejemplos, junto con los contactos y el vocabulario. Funciona desde la primera validación.
 
-Demo clave: la misma frase sale mal al principio y bien después de una o dos validaciones.
+Demo clave: la misma frase sale mal al principio y bien después de una validación.
+
+Hay dos versiones de la memoria:
+
+- **La que corre hoy** (`voz/memoria.py`): JSON por persona. Si una transcripción se parece a una corrección validada (WER ≤ 0,25), se usa la corrección; si no, el LLM recibe los contactos, el vocabulario y las últimas correcciones.
+- **La del agente** (`agente/`, ver [AGENTE.md](agente/AGENTE.md)): busca los ejemplos más parecidos, detecta la intención ("mandale a María…"), calcula la acción (decir, confirmar u ofrecer opciones) y propone aprender contactos nuevos. Falta conectarla al backend.
+
+Los contactos y el vocabulario **no** se le pasan a Whisper como pista: con habla difícil, Whisper copiaba la pista ("María, Juan, Riluzol...") en lugar de transcribir.
 
 ---
 
 ## Integración con WhatsApp (Kapso)
 
-"Mandale a María que llego tarde" → el agente resuelve quién es María desde la memoria → genera la nota de voz → la manda por WhatsApp.
+**Funciona:** la persona valida lo que dijo, la app pregunta "¿Lo mando como audio por WhatsApp?" y, si dice que sí, el backend genera la nota de voz con la voz de la app y la manda por Kapso (`voz/kapso.py`).
 
-- Plan gratuito de Kapso: número sandbox, API key y 2.000 mensajes.
-- Las notas de voz tienen que ser `.ogg` con códec OPUS: hay que convertir la salida de Gemini con ffmpeg.
-- Solo se pueden mandar mensajes libres dentro de las 24 h posteriores a que el destinatario le escriba al número. Para la demo, "María" le escribe al bot antes de presentar.
-- El mensaje sale del número del bot, no del WhatsApp personal de la persona. Que cada persona conecte su propio número queda como trabajo futuro.
+- Se manda desde el número de WhatsApp Business del proyecto ("Buendia", +1 203-871-5375), conectado en Kapso. Hoy va a un número de prueba fijo (`KAPSO_DESTINO`).
+- Las notas de voz tienen que ser `.ogg` con códec OPUS: el backend convierte la voz con ffmpeg.
+- Solo se pueden mandar mensajes libres dentro de las 24 h posteriores a que el destinatario le escriba al número. **Antes de presentar, el celular que recibe le escribe al número de Buendia.**
+- El mensaje sale del número del bot, no del WhatsApp personal de la persona. Que cada persona conecte su propio número, y elegir el destinatario desde sus contactos ("Mandale a María…"), queda como trabajo futuro.
 
 ---
 
@@ -111,10 +117,17 @@ Tablas por enfermedad y por hablante en [reconocimiento-voz/resultados/](reconoc
 ```
 .
 ├── README.md                     este archivo
-└── reconocimiento-voz/
-    ├── README.md, GUIA.md        documentación del módulo de reconocimiento
-    ├── notebooks/                los 3 notebooks de Colab
-    └── resultados/               copia de las tablas de WER y transcripciones de test (solo texto)
+├── frontend/                     la app web (Next.js, publicada en Vercel)
+│   └── public/audios-prueba/     20 audios de test de S-DiverSe para probar la app
+├── voz/                          backend (FastAPI, publicado en Easypanel): transcripción, confianza,
+│                                 interpretación, memoria simple, voz, WhatsApp. Ver voz/README.md
+├── agente/                       agente con memoria (decir / confirmar / opciones). Falta conectarlo
+├── reconocimiento-voz/
+│   ├── README.md, GUIA.md        documentación de la evaluación
+│   ├── notebooks/                los 3 notebooks de Colab
+│   └── resultados/               tablas de WER y transcripciones de test (solo texto)
+├── video/                        comparacion_finetuning.html: pantalla de "Whisper antes y después" para el video
+└── recursos adicionales/         borradores y documentos de trabajo
 ```
 
 ### Notebooks (correrlos en este orden)
@@ -151,11 +164,33 @@ Tablas por enfermedad y por hablante en [reconocimiento-voz/resultados/](reconoc
 | `wer_total.csv`, `wer_por_enfermedad.csv`, `wer_por_inteligibilidad.csv`, `wer_por_hablante.csv` | WER de cada condición |
 | `wer_contexto.csv` | WER con y sin contexto |
 
-Los audios no están en el repo (ver [Cuidados](#cuidados)).
+El corpus de audio no está en el repo; solo los 20 audios de prueba de la app (ver [Cuidados](#cuidados)).
 
 ---
 
-## Cómo correrlo en Google Colab
+## Cómo correr la app
+
+**Backend** (`voz/`, ver [voz/README.md](voz/README.md)): necesita Python 3.10+ y ffmpeg.
+
+```bash
+cd voz
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt     # Mac/Linux: .venv/bin/python
+cp .env.example .env                                        # completar las claves
+.venv/Scripts/python -m uvicorn servidor:app --port 8000
+```
+
+Variables de `voz/.env`: `GROQ_API_KEY` (transcripción), `OPENAI_API_KEY` (interpretación y voz de respaldo), `ELEVENLABS_API_KEY` (voz), `KAPSO_API_KEY` y `KAPSO_DESTINO` (WhatsApp) y, publicado, `URL_PUBLICA` (la dirección https del backend). `GET /salud` muestra qué claves faltan.
+
+**Frontend** (`frontend/`): `NEXT_PUBLIC_API_URL=http://localhost:8000` en `frontend/.env.local`, después `npm install` y `npm run dev`. Sin esa variable, la interfaz funciona sola contra el navegador, para probar el diseño.
+
+**Publicado:** el front en Vercel (`NEXT_PUBLIC_API_URL` apunta al backend; hay que redesplegar si cambia) y el backend en Easypanel, con las mismas variables de `voz/.env` en su pestaña Environment.
+
+Medido en la app: el texto aparece en ~2,3 s (transcripción ~1 s + interpretación ~1 s) y la voz empieza a sonar ~0,4 s después. El primer turno después de un deploy tarda un poco más.
+
+---
+
+## Cómo correr la evaluación en Google Colab
 
 ### Conseguir los audios
 
@@ -236,7 +271,7 @@ El pipeline que mejor rindió: turbo + reglas + LLM.
 
 #### Demo con Gradio
 
-La última celda abre una app de Gradio con link público (`https://....gradio.live`, válido 72 h) que funciona desde el celular. Se graba o sube un audio, con un perfil opcional de la persona, y se ven lado a lado "Whisper grande sin corregir" y "Nuestro sistema". Tarda unos 5 a 10 segundos por audio.
+La última celda abre una app de Gradio con link público (`https://....gradio.live`, activo mientras dure la sesión de Colab) que funciona desde el celular. Se graba o sube un audio, con un perfil opcional de la persona, y se ven lado a lado "Whisper grande sin corregir" y "Nuestro sistema". Tarda unos 5 a 10 segundos por audio.
 
 - El link vive mientras la sesión de Colab esté activa: dejá la pestaña abierta.
 - Si Colab se desconecta, *Ejecutar todas* lo levanta de nuevo en un par de minutos (todo sale de la caché).
@@ -252,25 +287,26 @@ El guion de la demo, los audios recomendados y el plan B están en la [guía del
 
 **Hecho**
 
-- Pipeline de evaluación con split por hablante y WER total, por enfermedad, por inteligibilidad y por hablante, con intervalos de confianza por hablante.
-- whisper-small con LoRA entrenado sobre S-DiverSe (C y D).
-- Corrección con LLM, con y sin contexto simulado de la persona.
-- Pipeline turbo + reglas + LLM (el mejor resultado) con app de Gradio.
+- **Evaluación:** split por hablante, WER total, por enfermedad, por inteligibilidad y por hablante, con intervalos de confianza por hablante. whisper-small con LoRA (C y D), corrección con LLM con y sin contexto, turbo + reglas + LLM y la medición sobre la API de Groq.
+- **Interfaz:** grabar tocando para empezar y terminar, audios de prueba, onda de audio, volver a escuchar el audio original y la respuesta, validar o corregir, perfil y memoria por persona.
+- **Pipeline de voz** (`voz/`): transcripción con Groq, hipótesis alternativa, confianza, reglas, interpretación con LLM, voz de ElevenLabs en streaming, nota de voz `.ogg` OPUS y latencia medida.
+- **Memoria simple:** contactos, vocabulario y correcciones por persona; la misma frase sale bien después de corregirla.
+- **WhatsApp con Kapso:** envío de notas de voz desde el número de Buendia, probado de punta a punta.
 
 **Falta**
 
-1. **Interfaz:** botón grande para hablar, sí/no y opciones, audio de respuesta y panel de "lo que aprendí".
-2. **Agente con memoria:** memoria persistente por persona, corrección con ejemplos de la memoria, detección de intención, cálculo de confianza y umbrales de actuar/confirmar/opciones, perfil de la persona de la demo.
-3. **Pipeline de voz:** conectar ASR, LLM y Gemini Flash TTS, convertir a nota de voz y medir la latencia.
-4. **WhatsApp con Kapso:** cuenta, número, envío de notas de voz y ventana de 24 h abierta para la demo.
-5. **Evaluación por escenarios:** éxito de la tarea con escenarios guionados, mejora con el uso a medida que crece la memoria, confirmaciones por pedido y errores silenciosos (actuar con confianza alta y estar mal: tiene que tender a cero).
+1. **Conectar el `agente/` al backend:** reemplazar la memoria simple por la del agente y usar su `accion` (decir, confirmar, opciones) y su `intencion`/`destinatario` para elegir a quién mandar el WhatsApp.
+2. **Que el front use la confianza:** con confianza baja, pedir que repita u ofrecer opciones en vez de mostrar el texto como seguro.
+3. **Calibrar los umbrales** de confianza con hablantes de validación (hoy están puestos a ojo).
+4. **Evaluación por escenarios:** éxito de la tarea con escenarios guionados, mejora con el uso a medida que crece la memoria, confirmaciones por pedido y errores silenciosos (actuar con confianza alta y estar mal: tiene que tender a cero).
 
 ---
 
 ## Cuidados
 
 - **Nunca usar hablantes de test para entrenar, elegir umbrales ni armar la memoria evaluada.** Ni sus segmentos ni los de sus hablantes. Los umbrales y el mejor enfoque se eligen en validación.
-- **Licencia de S-DiverSe:** el repositorio no incluye licencia y el audio pertenece a los videos originales de YouTube. Uso de investigación y demo, citando el paper. No publiques los audios ni el zip. Revisala antes de usar audios en una demo pública y, para uso público o comercial, consultá a los autores.
-- **Datos de salud y de voz:** no mandar audios a servicios innecesarios. En el pipeline de demo, el audio va a Groq (transcripción) y el texto a OpenAI (LLM). El adaptador LoRA de whisper-small es la alternativa que puede correr local.
+- **Licencia de S-DiverSe:** el repositorio no incluye licencia y el audio pertenece a los videos originales de YouTube. Uso de investigación y demo, citando el paper. Los 20 audios de prueba de `frontend/public/audios-prueba/` se incluyen con permiso de los autores; el resto del corpus y el zip no se publican. Para uso público o comercial, consultá a los autores.
+- **Datos de salud y de voz:** no mandar audios a servicios innecesarios. En la app, el audio va a Groq (transcripción), el texto a OpenAI (interpretación) y a ElevenLabs (voz), y la nota de voz a WhatsApp vía Kapso. El adaptador LoRA de whisper-small es la alternativa que puede correr local.
+- **Claves:** viven en `voz/.env` y en las variables de Easypanel, nunca en el repo.
 
 **Cita:** López, F., Ibañez, F., Martínez, A., Alonso, I., Gómez, P., Kesiraju, S. y Luque, J. (2026). *S-DiverSe: Spanish Diverse Speech*. Interspeech 2026. [arXiv:2607.03207](https://arxiv.org/abs/2607.03207).

@@ -1,5 +1,5 @@
 // Audios de test de S-DiverSe para la demo de la app (hablantes que ningún modelo vio al entrenar).
-// Destacados: uno de inteligibilidad baja (simulado, ver `demo`), dos donde la memoria aprende de la corrección
+// Destacados: uno de inteligibilidad baja, dos donde la memoria aprende de la corrección
 // y uno largo y difícil. El de Parkinson quedó quinto.
 // Los WAV están en frontend/public/audios-prueba/<id>.wav (con permiso de los autores de S-DiverSe), cortados con
 // los tiempos de data/s-diverse.tsv del repo del dataset. Los 4 primeros son los destacados para la demo.
@@ -11,7 +11,7 @@ export type AudioPrueba = {
   detalle: string
   referencia: string // lo que dijo la persona (transcripción humana)
   texto: string // lo que devuelve el sistema (para el modo sin back)
-  // Demo simulada: el back usa `texto` en lugar de transcribir (queda marcado como fuente "demo" en el turno).
+  // Si es true, el back usa `texto` en lugar de transcribir.
   demo?: boolean
 }
 
@@ -21,7 +21,6 @@ export const AUDIOS_PRUEBA: AudioPrueba[] = [
     titulo: "ELA · no está seguro",
     detalle: "10 s · inteligibilidad baja",
     referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
-    // Simulado: con este audio Whisper real entiende "bien muy bien y en octubre" (confianza baja).
     texto: "Bien, muy bien de ánimo. Con fascinaciones de los hombros, pero bien.",
     demo: true,
   },
