@@ -11,15 +11,19 @@ export type AudioPrueba = {
   detalle: string
   referencia: string // lo que dijo la persona (transcripción humana)
   texto: string // lo que devuelve el sistema (para el modo sin back)
+  // Demo simulada: el back usa `texto` en lugar de transcribir (queda marcado como fuente "demo" en el turno).
+  demo?: boolean
 }
 
 export const AUDIOS_PRUEBA: AudioPrueba[] = [
   {
     id: "ALS_M06_08_01",
     titulo: "ELA · no está seguro",
-    detalle: "10 s · confianza baja: debería preguntar",
+    detalle: "10 s · demo simulada",
     referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
-    texto: "bien muy bien y en octubre",
+    // Simulado: con este audio Whisper real entiende "bien muy bien y en octubre" (confianza baja).
+    texto: "Bien, muy bien de ánimo. Con fascinaciones de los hombros, pero bien.",
+    demo: true,
   },
   {
     id: "STROKE_F01_02",

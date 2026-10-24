@@ -18,9 +18,9 @@ import interprete
 import kapso
 import memoria
 import tts
-from asr import transcribir
-from nota_voz import a_nota_de_voz
-from pipeline import hablar, turno as correr_turno
+from asr import Transcripcion, transcribir
+from nota_voz import a_nota_de_voz, ruta_ffmpeg
+from pipeline import Turno, hablar, turno as correr_turno
 
 app = FastAPI(title="Voz Clara")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -41,7 +41,17 @@ def salud():
                     "voz_elevenlabs": config.TTS_ELEVEN_VOZ, "modelo_elevenlabs": config.TTS_ELEVEN_MODELO,
                     "voz_openai": config.TTS_OPENAI_VOZ},
             "claves": {"groq": bool(config.GROQ_API_KEY), "elevenlabs": bool(config.ELEVENLABS_API_KEY),
-                       "openai": bool(config.OPENAI_API_KEY), "gemini": bool(config.GEMINI_API_KEY)}}
+                       "openai": bool(config.OPENAI_API_KEY), "gemini": bool(config.GEMINI_API_KEY),
+                       "kapso": bool(config.KAPSO_API_KEY)},
+            "whatsapp": {"destino_configurado": bool(config.KAPSO_DESTINO), "ffmpeg": _hay_ffmpeg()}}
+
+
+def _hay_ffmpeg() -> bool:
+    try:
+        ruta_ffmpeg()
+        return True
+    except RuntimeError:
+        return False
 
 
 # --- Personas y memoria (contrato del front) ----------------------------------
@@ -73,11 +83,15 @@ def api_guardar_memoria(persona_id: str, datos: dict):
 
 @app.post("/turno")
 async def api_turno(request: Request, audio: UploadFile = File(...), persona_id: str = Form("demo"),
-                    alternativa: bool = Form(True)):
+                    alternativa: bool = Form(True), texto_demo: str | None = Form(None)):
     """Audio de la persona → lo que el sistema entendió + su voz. Se guarda en el historial.
 
     Devuelve un Turno {id, texto, audio_url, fecha, estado} más datos para depurar: texto_asr (Whisper tal cual,
     con reglas), confianza, nivel, hipotesis, correccion_usada y tiempos_ms.
+
+    `texto_demo` (solo para audios de prueba de la demo): se usa ese texto en lugar de transcribir. Se le aplica la
+    memoria igual y el turno queda marcado con interpretacion.fuente = "demo", para que nunca se confunda con una
+    transcripción real.
     """
     m = _memoria_o_404(persona_id)
     datos = await audio.read()
@@ -92,9 +106,12 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         usada["info"] = info
         return texto
 
-    vocabulario = memoria.vocabulario_para_asr(m) if config.ASR_USAR_VOCABULARIO else None
-    t = correr_turno(datos, audio.filename or "audio.webm", interpretar=interpretar,
-                     vocabulario=vocabulario, alternativa=alternativa)
+    if texto_demo and texto_demo.strip():
+        t = _turno_demo(texto_demo.strip(), m, usada)
+    else:
+        vocabulario = memoria.vocabulario_para_asr(m) if config.ASR_USAR_VOCABULARIO else None
+        t = correr_turno(datos, audio.filename or "audio.webm", interpretar=interpretar,
+                         vocabulario=vocabulario, alternativa=alternativa)
     turno_id = memoria.nuevo_turno_id()
     audio_url = None
     if t.wav:
@@ -115,6 +132,17 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         if t.wav else None,
     }
     return memoria.agregar_turno(persona_id, nuevo)
+
+
+def _turno_demo(texto_demo: str, m: dict, usada: dict) -> Turno:
+    """Turno simulado para la demo: no transcribe; usa el texto dado, le aplica la memoria y lo dice con la voz."""
+    texto, correccion = memoria.aplicar_correcciones(m, texto_demo)
+    usada["c"] = correccion
+    usada["info"] = {"fuente": "demo", "seguro": True, "memoria": bool(correccion)}
+    tr = Transcripcion(texto=texto_demo, texto_crudo=texto_demo, hipotesis=[texto_demo], confianza=1.0,
+                       nivel="alta", senales={"demo": True})
+    wav, _, tiempos = hablar(texto)
+    return Turno(transcripcion=tr, texto_a_decir=texto, wav=wav, tiempos_ms=tiempos)
 
 
 class PedidoValidar(BaseModel):
@@ -148,11 +176,13 @@ def api_enviar(p: PedidoEnviar):
     texto = turno.get("texto_final") or turno["texto"]
     # Si el texto no cambió, se reutiliza la voz ya generada en el turno (más rápido, sin gastar otra síntesis)
     wav_previo = AUDIOS / f"{p.turno_id}.wav"
-    wav = wav_previo.read_bytes() if wav_previo.exists() and texto == turno["texto"] else tts.sintetizar(texto)
     try:
+        wav = wav_previo.read_bytes() if wav_previo.exists() and texto == turno["texto"] else tts.sintetizar(texto)
         mensaje_id = kapso.enviar_nota_de_voz(p.destino or config.KAPSO_DESTINO, a_nota_de_voz(wav))
-    except kapso.ErrorKapso as e:
-        raise HTTPException(502, str(e))
+    except RuntimeError as e:  # Kapso, ffmpeg o las voces (ErrorKapso también es RuntimeError)
+        # 424 y no 502: los proxies (Easypanel/Traefik) reemplazan los 502 por su propia página de error y el front
+        # pierde el motivo. Con 424 el mensaje llega al navegador.
+        raise HTTPException(424, str(e))
     memoria.marcar_enviado(p.persona_id, p.turno_id, mensaje_id)
     return {"ok": True, "mensaje_id": mensaje_id, "texto": texto}
 

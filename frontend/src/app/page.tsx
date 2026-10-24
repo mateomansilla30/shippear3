@@ -210,7 +210,7 @@ export default function Home() {
       await reproducir(url)
       URL.revokeObjectURL(url)
     }
-    procesar(wav ?? new Blob(), `${a.id}.wav`, { texto: a.texto })
+    procesar(wav ?? new Blob(), `${a.id}.wav`, { texto: a.texto, demo: a.demo })
   }
 
   async function confirmar(textoFinal: string) {

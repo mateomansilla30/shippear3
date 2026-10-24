@@ -83,6 +83,7 @@ export async function enviarAudio(personaId: string, audio: Blob, nombre = "audi
   const datos = new FormData()
   datos.append("audio", audio, nombre)
   datos.append("persona_id", personaId)
+  if (pista?.demo) datos.append("texto_demo", pista.texto) // demo simulada: el back no transcribe
   return pedir("/turno", { method: "POST", body: datos })
 }
 
@@ -100,7 +101,8 @@ export async function enviarWhatsapp(personaId: string, turnoId: string): Promis
 }
 
 // Solo para el modo sin back: qué texto devolvería el sistema.
-export type Pista = { texto: string }
+// `demo`: con back, el texto se manda como texto_demo y reemplaza la transcripción (audios de prueba simulados).
+export type Pista = { texto: string; demo?: boolean }
 
 // ponytail: back falso en localStorage. El aprendizaje acá es una coincidencia exacta con una
 // corrección validada; el back real busca las correcciones parecidas y se las pasa al LLM.
