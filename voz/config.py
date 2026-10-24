@@ -22,8 +22,12 @@ CONFIANZA_ALTA = float(os.getenv("CONFIANZA_ALTA", "0.75"))
 CONFIANZA_MEDIA = float(os.getenv("CONFIANZA_MEDIA", "0.45"))
 
 # --- Voz (TTS): proveedor principal + respaldo, con tope de tiempo ---
-TTS_PROVEEDOR = os.getenv("TTS_PROVEEDOR", "openai")   # "openai" | "gemini"
-TTS_RESPALDO = os.getenv("TTS_RESPALDO", "gemini")     # "openai" | "gemini" | "ninguno"
+TTS_PROVEEDOR = os.getenv("TTS_PROVEEDOR", "elevenlabs")  # "elevenlabs" | "openai" | "gemini"
+TTS_RESPALDO = os.getenv("TTS_RESPALDO", "openai")         # cualquiera de los anteriores o "ninguno"
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+TTS_ELEVEN_MODELO = os.getenv("TTS_ELEVEN_MODELO", "eleven_flash_v2_5")
+TTS_ELEVEN_VOZ = os.getenv("TTS_ELEVEN_VOZ", "9oPKasc15pfAbMr7N6Gs")  # Valeria (acento argentino, biblioteca pública)
+TTS_ELEVEN_VELOCIDAD = float(os.getenv("TTS_ELEVEN_VELOCIDAD", "1.0"))
 TTS_TIMEOUT_S = float(os.getenv("TTS_TIMEOUT_S", "15"))
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TTS_OPENAI_MODELO = os.getenv("TTS_OPENAI_MODELO", "gpt-4o-mini-tts")

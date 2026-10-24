@@ -70,7 +70,30 @@ def _gemini(texto: str, voz: str | None, estilo: str | None) -> bytes:
     return _a_wav(base64.b64decode(datos) if isinstance(datos, str) else datos)
 
 
-_PROVEEDORES = {"openai": _openai, "gemini": _gemini}
+_ELEVEN_CON_IDIOMA = {"eleven_flash_v2_5", "eleven_turbo_v2_5"}  # modelos que aceptan language_code
+
+
+def _elevenlabs(texto: str, voz: str | None, estilo: str | None) -> bytes:
+    """ElevenLabs. `voz` es un voice_id (de la cuenta o de la biblioteca pública). `estilo` no aplica."""
+    import httpx
+    if not config.ELEVENLABS_API_KEY:
+        raise RuntimeError("Falta ELEVENLABS_API_KEY en voz/.env")
+    cuerpo = {
+        "text": texto,
+        "model_id": config.TTS_ELEVEN_MODELO,
+        "voice_settings": {"stability": 0.5, "similarity_boost": 0.75, "speed": config.TTS_ELEVEN_VELOCIDAD},
+    }
+    if config.TTS_ELEVEN_MODELO in _ELEVEN_CON_IDIOMA:
+        cuerpo["language_code"] = "es"
+    r = httpx.post(f"https://api.elevenlabs.io/v1/text-to-speech/{voz or config.TTS_ELEVEN_VOZ}",
+                   params={"output_format": "pcm_24000"}, json=cuerpo,
+                   headers={"xi-api-key": config.ELEVENLABS_API_KEY}, timeout=config.TTS_TIMEOUT_S)
+    if r.status_code != 200:
+        raise RuntimeError(f"ElevenLabs respondió {r.status_code}: {r.text[:300]}")
+    return _a_wav(r.content)  # PCM 24 kHz 16 bit mono → WAV
+
+
+_PROVEEDORES = {"elevenlabs": _elevenlabs, "openai": _openai, "gemini": _gemini}
 
 
 def _con_tope(proveedor: str, texto: str, voz: str | None, estilo: str | None) -> bytes:

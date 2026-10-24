@@ -10,7 +10,7 @@ audio (web: webm / wav)
   → reglas anti-alucinación            las mismas del notebook de evaluación
   → confianza 0–1 + nivel              alta / media / baja
   → [interpretar: LLM + agente]        lo enchufa otra parte del equipo
-  → TTS: OpenAI gpt-4o-mini-tts        WAV 24 kHz (respaldo: Gemini TTS, con tope de 15 s)
+  → TTS: ElevenLabs, voz Valeria       WAV 24 kHz, acento argentino (respaldo: OpenAI, con tope de 15 s)
   → ffmpeg                             .ogg OPUS mono (nota de voz de WhatsApp)
 ```
 
@@ -21,7 +21,7 @@ Desde `voz/`:
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt      # Windows (Mac/Linux: .venv/bin/python)
-cp .env.example .env                                          # y completá GROQ_API_KEY, OPENAI_API_KEY y GEMINI_API_KEY
+cp .env.example .env                                          # y completá GROQ_API_KEY, ELEVENLABS_API_KEY y OPENAI_API_KEY
 ```
 
 Necesita **ffmpeg** instalado (Windows: `winget install Gyan.FFmpeg`). Si no está en el PATH, poné su ruta en
@@ -54,7 +54,7 @@ Abrí http://localhost:8000/docs para probar cada endpoint desde el navegador (s
 | --- | --- | --- |
 | `GET /salud` | — | Modelos configurados y si están las claves |
 | `POST /transcribir` | `audio`, `vocabulario` (opcional, "María, Lucía, levodopa"), `alternativa` | JSON: `texto`, `texto_crudo`, `hipotesis`, `confianza`, `nivel`, `senales`, `segmentos`, `tiempos_ms` |
-| `POST /hablar` | JSON `{"texto": "...", "voz": "marin", "formato": "wav" \| "ogg"}` | El audio directamente (`audio/wav` o `audio/ogg`) |
+| `POST /hablar` | JSON `{"texto": "...", "voz": "<voice_id>", "formato": "wav" \| "ogg"}` | El audio directamente (`audio/wav` o `audio/ogg`) |
 | `POST /nota-de-voz` | `audio` (cualquier formato) | `.ogg` OPUS para WhatsApp |
 
 **Memoria (versión simple).** Se guarda en `voz/datos/` (JSON, no se sube al repo). En cada turno:
@@ -96,8 +96,8 @@ hablantes de **validación** de S-DiverSe, nunca de test.
 ## Elegir la voz y medir tiempos
 
 ```bash
-.venv/Scripts/python probar_voces.py        # misma frase con 6 voces de OpenAI → salidas/voces/*.wav
-.venv/Scripts/python probar_voces.py gemini # lo mismo con voces de Gemini
+.venv/Scripts/python probar_voces.py         # misma frase con 8 voces argentinas de ElevenLabs → salidas/voces/*.wav
+.venv/Scripts/python probar_voces.py openai  # lo mismo con voces de OpenAI (o gemini)
 .venv/Scripts/python medir_latencia.py ../../data_src/s-diverse/data/audio/ALS --max 8
 ```
 
@@ -107,15 +107,17 @@ Medido con 3 audios cortos de S-DiverSe (6 a 19 s), desde Argentina:
 
 | Etapa | Mediana | Peor caso |
 | --- | --- | --- |
-| Transcripción (Groq, con alternativa en paralelo) | 1,1 s | 1,6 s |
-| Voz (OpenAI gpt-4o-mini-tts) | 2,0 s | 2,4 s |
-| Nota de voz `.ogg` | 0,09 s | 0,14 s |
-| **Total, sin el LLM del agente** | **3,6 s** | **3,7 s** |
+| Transcripción (Groq, con alternativa en paralelo) | 0,9 s | 1,9 s |
+| Voz (ElevenLabs, Valeria, eleven_flash_v2_5) | 1,0 s | 1,6 s |
+| Nota de voz `.ogg` | 0,08 s | 0,13 s |
+| **Total, sin el LLM del agente** | **2,0 s** | **3,7 s** |
 
-**Por qué OpenAI y no Gemini para la voz:** Gemini tardó de 4 a 7 s por frase y, después de 8 pedidos, dejó de
-responder sin dar error (probablemente el cupo gratuito). OpenAI responde en ~2 s. Gemini queda como respaldo: si
-OpenAI falla o tarda más de `TTS_TIMEOUT_S` (15 s), se usa Gemini; si los dos fallan, el error lo dice en vez de
-quedarse colgado.
+**La voz: ElevenLabs con Valeria** (acento argentino, de la biblioteca pública; se usa sin agregarla a la cuenta).
+Probamos tres proveedores: Gemini tardó de 4 a 7 s por frase y dejó de responder tras 8 pedidos (cupo gratuito);
+OpenAI responde en ~2 s pero sus voces en español suenan poco naturales; ElevenLabs responde en ~1 s con acento
+rioplatense. El primer pedido con una voz tarda unos segundos más (la carga), así que conviene hacer un turno de
+prueba antes de presentar. Si ElevenLabs falla o tarda más de `TTS_TIMEOUT_S` (15 s), se usa OpenAI; si los dos
+fallan, el error lo dice en vez de quedarse colgado.
 
 Palancas para bajar la latencia, de mayor a menor efecto:
 
@@ -128,7 +130,7 @@ Palancas para bajar la latencia, de mayor a menor efecto:
 
 ## Notas
 
-- **Privacidad:** el audio va a Groq y el texto a OpenAI (y a Google si se usa el respaldo). Son datos de salud y de voz: no los mandes a otros
+- **Privacidad:** el audio va a Groq y el texto a ElevenLabs (y a OpenAI si se usa el respaldo). Son datos de salud y de voz: no los mandes a otros
   servicios ni los guardes sin necesidad.
 - **Vocabulario:** pasar nombres de contactos como `vocabulario` ayuda a que Whisper los escriba bien, pero puede
   hacer que los "oiga" donde no están. Usar pocos y relevantes.

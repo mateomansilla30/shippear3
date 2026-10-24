@@ -35,9 +35,10 @@ def _memoria_o_404(persona_id: str) -> dict:
 def salud():
     return {"ok": True, "asr": config.ASR_MODELO,
             "tts": {"principal": config.TTS_PROVEEDOR, "respaldo": config.TTS_RESPALDO,
-                    "voz_openai": config.TTS_OPENAI_VOZ, "voz_gemini": config.TTS_GEMINI_VOZ},
-            "claves": {"groq": bool(config.GROQ_API_KEY), "openai": bool(config.OPENAI_API_KEY),
-                       "gemini": bool(config.GEMINI_API_KEY)}}
+                    "voz_elevenlabs": config.TTS_ELEVEN_VOZ, "modelo_elevenlabs": config.TTS_ELEVEN_MODELO,
+                    "voz_openai": config.TTS_OPENAI_VOZ},
+            "claves": {"groq": bool(config.GROQ_API_KEY), "elevenlabs": bool(config.ELEVENLABS_API_KEY),
+                       "openai": bool(config.OPENAI_API_KEY), "gemini": bool(config.GEMINI_API_KEY)}}
 
 
 # --- Personas y memoria (contrato del front) ----------------------------------
