@@ -19,7 +19,7 @@ export const AUDIOS_PRUEBA: AudioPrueba[] = [
   {
     id: "ALS_M06_08_01",
     titulo: "ELA · no está seguro",
-    detalle: "10 s · demo simulada",
+    detalle: "10 s · inteligibilidad baja",
     referencia: "Bien, muy bien de ánimo. Con unas fasciculaciones en los hombros, pero bien.",
     // Simulado: con este audio Whisper real entiende "bien muy bien y en octubre" (confianza baja).
     texto: "Bien, muy bien de ánimo. Con fascinaciones de los hombros, pero bien.",
