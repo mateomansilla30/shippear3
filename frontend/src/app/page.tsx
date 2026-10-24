@@ -180,6 +180,14 @@ export default function Home() {
   async function terminar() {
     const audio = await mic.stop()
     if (audio.size === 0) return setFase("inicio")
+    if (!mic.huboSonido()) {
+      // Mandar silencio hace que Whisper invente texto: mejor avisar que el micrófono no captó nada.
+      setError(
+        `No llegó sonido del micrófono${mic.microfono ? ` «${mic.microfono}»` : ""}. ` +
+          "Revisá que sea el correcto (candado de la barra de direcciones → Micrófono) y que no esté silenciado.",
+      )
+      return setFase("error")
+    }
     procesar(audio, `grabacion.${audio.type.includes("mp4") ? "mp4" : "webm"}`)
   }
 
@@ -315,6 +323,9 @@ export default function Home() {
                 <div className="flex w-full flex-col items-center gap-1">
                   <TextShimmer text="Escuchando…" className="text-lg" />
                   {audioActual && <span className="text-sm text-muted-foreground">{audioActual.titulo}</span>}
+                  {mic.analyser && mic.microfono && (
+                    <span className="text-xs text-muted-foreground">Micrófono: {mic.microfono}</span>
+                  )}
                   <OndaAudio analyser={mic.analyser ?? voz} className="mt-3" />
                 </div>
               )}
