@@ -13,6 +13,10 @@ GROQ_URL = "https://api.groq.com/openai/v1"
 ASR_MODELO = os.getenv("ASR_MODELO", "whisper-large-v3-turbo")          # rápido: el que usa la demo
 ASR_MODELO_ALTERNATIVO = os.getenv("ASR_MODELO_ALTERNATIVO", "whisper-large-v3")  # segunda hipótesis
 ASR_IDIOMA = "es"
+# Pasarle a Whisper los contactos y el vocabulario de la persona como pista (`prompt`). APAGADO: con habla difícil,
+# Whisper copia la pista ("María, Juan, Riluzol...") en lugar de transcribir, a veces con confianza alta.
+# El vocabulario lo usa mejor la corrección posterior (memoria / agente con LLM).
+ASR_USAR_VOCABULARIO = os.getenv("ASR_USAR_VOCABULARIO", "0") == "1"
 # Cuánto más se espera a la hipótesis alternativa después de tener la principal (segundos).
 # Si tarda más, se sigue sin ella: la alternativa nunca debe frenar la respuesta.
 ASR_ESPERA_ALTERNATIVA_S = float(os.getenv("ASR_ESPERA_ALTERNATIVA_S", "1.0"))

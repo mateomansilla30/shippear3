@@ -89,8 +89,9 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         usada["c"] = correccion
         return texto or "No te entendí. ¿Podés repetirlo?"
 
+    vocabulario = memoria.vocabulario_para_asr(m) if config.ASR_USAR_VOCABULARIO else None
     t = correr_turno(datos, audio.filename or "audio.webm", interpretar=interpretar,
-                     vocabulario=memoria.vocabulario_para_asr(m), alternativa=alternativa)
+                     vocabulario=vocabulario, alternativa=alternativa)
     turno_id = memoria.nuevo_turno_id()
     audio_url = None
     if t.wav:

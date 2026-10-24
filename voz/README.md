@@ -58,7 +58,7 @@ Abrí http://localhost:8000/docs para probar cada endpoint desde el navegador (s
 | `POST /nota-de-voz` | `audio` (cualquier formato) | `.ogg` OPUS para WhatsApp |
 
 **Memoria (versión simple).** Se guarda en `voz/datos/` (JSON, no se sube al repo). En cada turno:
-1. Los nombres de los contactos y el vocabulario de la persona van a Whisper como pista.
+1. Los contactos y el vocabulario de la persona **no** van a Whisper como pista (ver Notas): quedan para la corrección.
 2. Si la transcripción se parece a una que la persona ya corrigió (WER ≤ 0,25), se usa la corrección. Así, la misma
    frase sale mal la primera vez y bien después de validarla.
 
@@ -132,7 +132,8 @@ Palancas para bajar la latencia, de mayor a menor efecto:
 
 - **Privacidad:** el audio va a Groq y el texto a ElevenLabs (y a OpenAI si se usa el respaldo). Son datos de salud y de voz: no los mandes a otros
   servicios ni los guardes sin necesidad.
-- **Vocabulario:** pasar nombres de contactos como `vocabulario` ayuda a que Whisper los escriba bien, pero puede
-  hacer que los "oiga" donde no están. Usar pocos y relevantes.
+- **Vocabulario como pista para Whisper: apagado.** Con habla difícil, Whisper copia la pista en lugar de transcribir:
+  con ALS_M06_08_01 devolvió "María, Juan, Riluzol, kinesiólogo, Háblalo." con confianza 0,86. Se puede activar con
+  `ASR_USAR_VOCABULARIO=1`; si Whisper devuelve solo palabras de la pista, la confianza pasa a 0.
 - Las reglas (`reglas.py`) son copia exacta de las del notebook de evaluación, para que el sistema en vivo limpie igual
   que lo que medimos.

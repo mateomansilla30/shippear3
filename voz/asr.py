@@ -108,6 +108,13 @@ def calcular_confianza(segmentos: list[Segmento], texto_crudo: str, texto_limpio
     return round(min(max(confianza, 0.0), 1.0), 3), senales
 
 
+def _es_eco_de_la_pista(texto: str, vocabulario: list[str]) -> bool:
+    """True si casi todas las palabras transcriptas salen de la pista (Whisper la copió)."""
+    palabras = normalizar(texto).split()
+    pista = set(normalizar(" ".join(vocabulario + ["vocabulario"])).split())
+    return bool(palabras) and sum(p in pista for p in palabras) / len(palabras) >= 0.6
+
+
 def nivel_de(confianza: float) -> str:
     if confianza >= config.CONFIANZA_ALTA:
         return "alta"
@@ -148,6 +155,9 @@ def transcribir(audio: bytes, nombre: str = "audio.wav", vocabulario: list[str] 
     hipotesis = [limpio] + ([alt_limpia] if alt_limpia and normalizar(alt_limpia) != normalizar(limpio) else [])
     segs = _segmentos(r)
     confianza, senales = calcular_confianza(segs, crudo, limpio, alt_limpia)
+    if vocabulario and _es_eco_de_la_pista(limpio, vocabulario):
+        # Whisper repitió la pista en vez de transcribir: no hay que creerle
+        confianza, senales = 0.0, {**senales, "eco_de_la_pista": True}
     tiempos["asr_total"] = round((time.perf_counter() - t0) * 1000)
     return Transcripcion(texto=limpio, texto_crudo=crudo, hipotesis=hipotesis, confianza=confianza,
                          nivel=nivel_de(confianza), senales=senales, segmentos=segs,
