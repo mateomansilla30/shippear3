@@ -44,6 +44,15 @@ TTS_ESTILO = os.getenv(
     "voz cálida y clara, español rioplatense, hablando con calma y pronunciando bien cada palabra",
 )
 
+# --- WhatsApp (Kapso) ---
+KAPSO_API_KEY = os.getenv("KAPSO_API_KEY")
+KAPSO_PHONE_NUMBER_ID = os.getenv("KAPSO_PHONE_NUMBER_ID")  # si falta, se usa el primer número de la cuenta
+KAPSO_DESTINO = os.getenv("KAPSO_DESTINO")  # número de prueba con código de país, p. ej. 5491112345678
+
+# --- Interpretación con LLM (lo que la persona quiso decir) ---
+INTERPRETAR_CON_LLM = os.getenv("INTERPRETAR_CON_LLM", "1") == "1"
+LLM_MODELO = os.getenv("LLM_MODELO", "gpt-4.1-mini")  # OpenAI: rápido y barato
+
 # --- Nota de voz ---
 FFMPEG = os.getenv("FFMPEG")  # ruta a ffmpeg si no está en el PATH
 NOTA_VOZ_BITRATE = os.getenv("NOTA_VOZ_BITRATE", "32k")

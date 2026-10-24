@@ -14,6 +14,8 @@ from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 import config
+import interprete
+import kapso
 import memoria
 import tts
 from asr import transcribir
@@ -85,9 +87,10 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
     usada = {}
 
     def interpretar(tr):
-        texto, correccion = memoria.aplicar_correcciones(m, tr.texto)
-        usada["c"] = correccion
-        return texto or "No te entendí. ¿Podés repetirlo?"
+        texto, info = interprete.interpretar(tr, m)
+        usada["c"] = info.get("correccion")
+        usada["info"] = info
+        return texto
 
     vocabulario = memoria.vocabulario_para_asr(m) if config.ASR_USAR_VOCABULARIO else None
     t = correr_turno(datos, audio.filename or "audio.webm", interpretar=interpretar,
@@ -105,6 +108,8 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         "texto_asr": t.transcripcion.texto, "confianza": t.transcripcion.confianza,
         "nivel": t.transcripcion.nivel, "hipotesis": t.transcripcion.hipotesis,
         "correccion_usada": usada.get("c"), "tiempos_ms": t.tiempos_ms,
+        # De dónde salió el texto: memoria, llm o transcripción; y si el intérprete está seguro
+        "interpretacion": {k: v for k, v in (usada.get("info") or {}).items() if k != "correccion"},
         # Qué proveedor de voz se usó y, si el principal falló, por qué (para depurar desde el navegador)
         "voz": {"proveedor": tts.ultimo_proveedor.get("nombre"), "errores": tts.ultimo_proveedor.get("errores")}
         if t.wav else None,
@@ -125,6 +130,31 @@ def api_validar(p: PedidoValidar):
         return memoria.validar(p.persona_id, p.turno_id, p.texto_final)
     except KeyError:
         raise HTTPException(404, f"No existe el turno {p.turno_id}")
+
+
+class PedidoEnviar(BaseModel):
+    persona_id: str
+    turno_id: str
+    destino: str | None = None  # si falta, KAPSO_DESTINO del .env
+
+
+@app.post("/enviar")
+def api_enviar(p: PedidoEnviar):
+    """Manda por WhatsApp (Kapso) el texto de un turno como nota de voz, con la voz de la app."""
+    m = _memoria_o_404(p.persona_id)
+    turno = next((t for t in m.get("historial", []) if t["id"] == p.turno_id), None)
+    if turno is None:
+        raise HTTPException(404, f"No existe el turno {p.turno_id}")
+    texto = turno.get("texto_final") or turno["texto"]
+    # Si el texto no cambió, se reutiliza la voz ya generada en el turno (más rápido, sin gastar otra síntesis)
+    wav_previo = AUDIOS / f"{p.turno_id}.wav"
+    wav = wav_previo.read_bytes() if wav_previo.exists() and texto == turno["texto"] else tts.sintetizar(texto)
+    try:
+        mensaje_id = kapso.enviar_nota_de_voz(p.destino or config.KAPSO_DESTINO, a_nota_de_voz(wav))
+    except kapso.ErrorKapso as e:
+        raise HTTPException(502, str(e))
+    memoria.marcar_enviado(p.persona_id, p.turno_id, mensaje_id)
+    return {"ok": True, "mensaje_id": mensaje_id, "texto": texto}
 
 
 def _wav_de(carpeta, nombre: str) -> FileResponse:

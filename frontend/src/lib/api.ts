@@ -7,6 +7,8 @@
 //   POST /turno         form-data: audio, persona_id → Turno (el back lo guarda en el historial)
 //   POST /validar       {persona_id, turno_id, texto_final} → Memoria
 //        Si texto_final ≠ turno.texto, el back guarda la corrección {original: turno.texto → texto_final}.
+//   POST /enviar        {persona_id, turno_id} → {ok, mensaje_id, texto}
+//        Manda el texto final del turno como nota de voz por WhatsApp (Kapso), con la voz de la app.
 //
 // Sin NEXT_PUBLIC_API_URL todo funciona contra localStorage, para poder probar la interfaz.
 
@@ -16,10 +18,12 @@ export type Correccion = { original: string; texto: string; fecha: string }
 export type Turno = {
   id: string
   texto: string // lo que el sistema entendió
-  audio_url?: string // voz del asistente (Gemini TTS), si el back la devuelve
+  audio_url?: string // voz del asistente (ElevenLabs), si el back la devuelve
   fecha: string
   estado: "pendiente" | "validado" | "corregido"
   texto_final?: string
+  nivel?: "alta" | "media" | "baja" // confianza de la transcripción
+  enviado?: { fecha: string; mensaje_id: string } // si ya se mandó por WhatsApp
 }
 export type Memoria = {
   persona: Persona
@@ -41,7 +45,11 @@ export function urlAudioPrueba(id: string) {
 
 async function pedir<T>(ruta: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`${API_URL}${ruta}`, init)
-  if (!r.ok) throw new Error(`El servidor respondió ${r.status}`)
+  if (!r.ok) {
+    // FastAPI manda el motivo en "detail": mostrarlo ayuda a saber qué falló (por ejemplo, la clave de Kapso).
+    const detalle = await r.json().then((d) => (typeof d?.detail === "string" ? d.detail : "")).catch(() => "")
+    throw new Error(detalle || `El servidor respondió ${r.status}`)
+  }
   return r.json()
 }
 const json = (method: string, body: unknown): RequestInit => ({
@@ -81,6 +89,14 @@ export async function enviarAudio(personaId: string, audio: Blob, nombre = "audi
 export async function validar(personaId: string, turnoId: string, textoFinal: string): Promise<Memoria> {
   if (!API_URL) return local.validar(personaId, turnoId, textoFinal)
   return pedir("/validar", json("POST", { persona_id: personaId, turno_id: turnoId, texto_final: textoFinal }))
+}
+
+export async function enviarWhatsapp(personaId: string, turnoId: string): Promise<{ ok: boolean; mensaje_id: string }> {
+  if (!API_URL) {
+    await new Promise((r) => setTimeout(r, 1200)) // sin back: se simula el envío
+    return { ok: true, mensaje_id: "simulado" }
+  }
+  return pedir("/enviar", json("POST", { persona_id: personaId, turno_id: turnoId }))
 }
 
 // Solo para el modo sin back: qué texto devolvería el sistema.

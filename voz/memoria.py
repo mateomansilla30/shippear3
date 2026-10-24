@@ -154,6 +154,16 @@ def validar(persona_id: str, turno_id: str, texto_final: str) -> dict:
     return m
 
 
+def marcar_enviado(persona_id: str, turno_id: str, mensaje_id: str) -> None:
+    """Registra en el historial que el turno se mandó por WhatsApp."""
+    m = obtener_memoria(persona_id)
+    for t in m.get("historial", []):
+        if t["id"] == turno_id:
+            t["enviado"] = {"fecha": _ahora(), "mensaje_id": mensaje_id}
+    with _candado:
+        _escribir(f"memoria_{persona_id}.json", m)
+
+
 def nuevo_turno_id() -> str:
     return uuid.uuid4().hex[:12]
 

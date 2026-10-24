@@ -15,13 +15,19 @@ export function OndaAudio({ analyser, barras = 32, className }: { analyser: Anal
   const reducir = useReducedMotion()
 
   React.useEffect(() => {
-    if (!analyser || reducir) return setAlturas(Array(barras).fill(3))
+    // Con movimiento reducido la onda igual se muestra: no es decoración, es la forma de ver que el micrófono
+    // escucha. Solo se actualiza menos seguido y sin transición.
+    if (!analyser) return setAlturas(Array(barras).fill(3))
     const datos = new Uint8Array(analyser.frequencyBinCount)
+    let ultimo = 0
     // La voz vive entre ~80 Hz y ~4 kHz: el primer 16 % del espectro. Se dibuja en espejo desde el centro.
     const util = Math.max(8, Math.floor(datos.length * 0.16))
     const mitad = Math.ceil(barras / 2)
     let raf = 0
-    const dibujar = () => {
+    const dibujar = (ms: number) => {
+      raf = requestAnimationFrame(dibujar)
+      if (reducir && ms - ultimo < 125) return
+      ultimo = ms
       analyser.getByteFrequencyData(datos)
       const lado = Array.from({ length: mitad }, (_, i) => {
         const desde = Math.floor((i * util) / mitad)
@@ -31,7 +37,6 @@ export function OndaAudio({ analyser, barras = 32, className }: { analyser: Anal
         return Math.max(3, (suma / (hasta - desde) / 255) * ALTO)
       })
       setAlturas([...lado].reverse().concat(lado).slice(0, barras))
-      raf = requestAnimationFrame(dibujar)
     }
     raf = requestAnimationFrame(dibujar)
     return () => cancelAnimationFrame(raf)
@@ -42,7 +47,7 @@ export function OndaAudio({ analyser, barras = 32, className }: { analyser: Anal
       {alturas.map((h, i) => (
         <div
           key={i}
-          className="w-1.5 rounded-full bg-[#0047fc] transition-[height] duration-75"
+          className={cn("w-1.5 rounded-full bg-[#0047fc]", !reducir && "transition-[height] duration-75")}
           style={{ height: h, opacity: 0.35 + (h / ALTO) * 0.65 }}
         />
       ))}

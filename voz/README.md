@@ -9,10 +9,25 @@ audio (web: webm / wav)
   ∥ Groq whisper-large-v3              hipótesis alternativa, en paralelo (opcional)
   → reglas anti-alucinación            las mismas del notebook de evaluación
   → confianza 0–1 + nivel              alta / media / baja
-  → [interpretar: LLM + agente]        lo enchufa otra parte del equipo
+  → interpretar                        memoria de la persona y, si la confianza no es baja, LLM (gpt-4.1-mini)
   → TTS: ElevenLabs, voz Valeria       WAV 24 kHz, acento argentino (respaldo: OpenAI, con tope de 15 s)
   → ffmpeg                             .ogg OPUS mono (nota de voz de WhatsApp)
+  → Kapso                              se manda al chat de WhatsApp, si la persona confirma
 ```
+
+## Flujo con WhatsApp
+
+1. La persona habla. `/turno` transcribe e **interpreta lo que quiso decir** (`interprete.py`): primero busca una
+   corrección parecida en su memoria; si no hay y la confianza no es baja, un LLM corrige errores de reconocimiento
+   usando sus contactos, vocabulario y correcciones ("kero ablar co maia" → "Quiero hablar con María"). Con confianza
+   baja no adivina. Si el LLM cambia demasiado el largo del texto, se descarta.
+2. La app muestra lo que entendió; la persona lo valida o lo corrige (`/validar`).
+3. La app pregunta "¿Lo mando como audio por WhatsApp?". Si dice que sí, `/enviar` genera la nota de voz con Valeria
+   (.ogg OPUS) y la manda por Kapso (`kapso.py`) a `KAPSO_DESTINO`.
+
+Para probarlo con el **sandbox de Kapso**: en el panel, WhatsApp → Sandbox → Add Test Number con tu número, y mandá
+el código de activación desde ese WhatsApp. `KAPSO_DESTINO` tiene que ser ese mismo número. WhatsApp solo deja mandar
+mensajes dentro de las 24 h desde que el destinatario le escribió al número.
 
 ## Instalación
 
@@ -46,6 +61,7 @@ Abrí http://localhost:8000/docs para probar cada endpoint desde el navegador (s
 | `PUT /memoria/{persona_id}` | JSON con persona, contactos, vocabulario, correcciones | La memoria actualizada |
 | `POST /turno` | `audio` (archivo), `persona_id` | Turno: `id`, `texto`, `audio_url`, `fecha`, `estado`; y para depurar: `texto_asr`, `confianza`, `nivel`, `hipotesis`, `correccion_usada`, `tiempos_ms` |
 | `POST /validar` | JSON `{"persona_id", "turno_id", "texto_final"}` | La memoria. Si el texto cambió, guarda la corrección |
+| `POST /enviar` | JSON `{"persona_id", "turno_id", "destino"?}` | Manda el texto final como nota de voz por WhatsApp (Kapso). Si falla, el motivo viene en `detail` |
 | `GET /audio/{id}.wav` | — | La voz de un turno (lo que apunta `audio_url`) |
 
 **Para el agente y WhatsApp:**

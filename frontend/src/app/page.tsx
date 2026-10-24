@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { motion, useAnimationFrame, useMotionValue, useReducedMotion } from "motion/react"
-import { Check, PanelLeft, PenLine, Play, Upload, Volume2 } from "lucide-react"
+import { Check, PanelLeft, PenLine, Play, Send, Upload, Volume2 } from "lucide-react"
 
 import {
   AnimatedSidebarInset,
@@ -25,6 +25,7 @@ import {
   HAY_BACK,
   crearPersona,
   enviarAudio,
+  enviarWhatsapp,
   guardarMemoria,
   listarPersonas,
   obtenerMemoria,
@@ -61,6 +62,7 @@ export default function Home() {
   const [voz, setVoz] = useState<AnalyserNode | null>(null)
   const [corrigiendo, setCorrigiendo] = useState(false)
   const [borrador, setBorrador] = useState("")
+  const [envio, setEnvio] = useState("") // "" | "enviando" | "ok" | mensaje de error
   const mic = useRecorder()
   const reducirMovimiento = useReducedMotion()
 
@@ -217,6 +219,21 @@ export default function Home() {
     setMemoria(m)
     setTurno(m.historial.find((h) => h.id === turno.id) ?? turno)
     setCorrigiendo(false)
+  }
+
+  // Cada turno arranca sin envío en curso.
+  useEffect(() => setEnvio(""), [turno?.id])
+
+  async function enviarPorWhatsapp() {
+    if (!turno || envio === "enviando") return
+    setEnvio("enviando")
+    try {
+      await enviarWhatsapp(personaId, turno.id)
+      setEnvio("ok")
+      obtenerMemoria(personaId).then(setMemoria)
+    } catch (e) {
+      setEnvio(e instanceof Error ? e.message : "No pude enviarlo")
+    }
   }
 
   function verTurno(t: Turno) {
@@ -389,17 +406,43 @@ export default function Home() {
                   {(fase === "listo" || fase === "hablando") && (
                     <div className="mt-6 w-full max-w-xl">
                       {turno.estado !== "pendiente" ? (
-                        <p className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm">
-                          {turno.estado === "validado" ? (
-                            <>
-                              <Check className="size-4 text-emerald-600" /> Validado
-                            </>
+                        <div className="flex flex-col items-center gap-4">
+                          <p className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm">
+                            {turno.estado === "validado" ? (
+                              <>
+                                <Check className="size-4 text-emerald-600" /> Validado
+                              </>
+                            ) : (
+                              <>
+                                <PenLine className="size-4 text-amber-600" /> Corregido: lo voy a recordar
+                              </>
+                            )}
+                          </p>
+
+                          {/* Con el texto ya confirmado, la app ofrece mandarlo como nota de voz con la voz clara. */}
+                          {turno.enviado || envio === "ok" ? (
+                            <p className="inline-flex items-center gap-2 text-base font-medium text-emerald-700">
+                              <Send className="size-4" /> Enviado por WhatsApp
+                            </p>
                           ) : (
-                            <>
-                              <PenLine className="size-4 text-amber-600" /> Corregido: lo voy a recordar
-                            </>
+                            <div className="flex w-full flex-col items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-4">
+                              <span className="text-base font-medium">¿Lo mando como audio por WhatsApp?</span>
+                              <Button
+                                size="lg"
+                                className="h-12 w-full max-w-sm text-base"
+                                disabled={envio === "enviando"}
+                                onClick={enviarPorWhatsapp}
+                              >
+                                <Send /> {envio === "enviando" ? "Enviando…" : "Sí, enviar audio"}
+                              </Button>
+                              {envio && envio !== "enviando" && envio !== "ok" && (
+                                <p role="alert" className="text-sm text-destructive">
+                                  {envio}
+                                </p>
+                              )}
+                            </div>
                           )}
-                        </p>
+                        </div>
                       ) : corrigiendo ? (
                         <form
                           className="space-y-3 text-left"

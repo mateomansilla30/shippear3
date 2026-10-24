@@ -18,10 +18,18 @@ export function useRecorder() {
   const medicion = useRef<number | null>(null)
 
   async function start() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    setMicrofono(stream.getAudioTracks()[0]?.label ?? "")
+    // El AudioContext se crea antes de esperar el permiso, todavía dentro del clic: si se crea después,
+    // el navegador puede dejarlo suspendido y la onda y la medición de nivel leen ceros.
     ctx.current = new AudioContext()
-    // Si el contexto queda suspendido, el analizador lee ceros: en ese caso no se puede medir el nivel.
+    let stream: MediaStream
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    } catch (e) {
+      ctx.current.close().catch(() => {})
+      throw e
+    }
+    setMicrofono(stream.getAudioTracks()[0]?.label ?? "")
+    // Si aun así quedó suspendido, el analizador lee ceros: en ese caso no se puede medir el nivel.
     await Promise.race([ctx.current.resume(), new Promise((r) => setTimeout(r, 300))]).catch(() => {})
     medible.current = ctx.current.state === "running"
     const node = ctx.current.createAnalyser()
