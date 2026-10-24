@@ -31,3 +31,6 @@ Thumbs.db
 
 # graphify
 graphify-out/
+
+# memoria del agente (datos de personas)
+*.db
