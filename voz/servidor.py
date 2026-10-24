@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 import config
 import memoria
+import tts
 from asr import transcribir
 from nota_voz import a_nota_de_voz
 from pipeline import hablar, turno as correr_turno
@@ -103,6 +104,9 @@ async def api_turno(request: Request, audio: UploadFile = File(...), persona_id:
         "texto_asr": t.transcripcion.texto, "confianza": t.transcripcion.confianza,
         "nivel": t.transcripcion.nivel, "hipotesis": t.transcripcion.hipotesis,
         "correccion_usada": usada.get("c"), "tiempos_ms": t.tiempos_ms,
+        # Qué proveedor de voz se usó y, si el principal falló, por qué (para depurar desde el navegador)
+        "voz": {"proveedor": tts.ultimo_proveedor.get("nombre"), "errores": tts.ultimo_proveedor.get("errores")}
+        if t.wav else None,
     }
     return memoria.agregar_turno(persona_id, nuevo)
 
