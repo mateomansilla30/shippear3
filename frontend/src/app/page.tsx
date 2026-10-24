@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { motion, useAnimationFrame, useMotionValue, useReducedMotion } from "motion/react"
-import { Check, PanelLeft, PenLine, Upload } from "lucide-react"
+import { Check, PanelLeft, PenLine, Play, Upload, Volume2 } from "lucide-react"
 
 import {
   AnimatedSidebarInset,
@@ -51,6 +51,8 @@ export default function Home() {
   const [modo, setModo] = useState<"hablar" | "subir">("hablar")
   const [turno, setTurno] = useState<Turno | null>(null)
   const [referencia, setReferencia] = useState<string | null>(null)
+  const [original, setOriginal] = useState<string | null>(null) // audio que se mandó, para volver a escucharlo
+  const [sonando, setSonando] = useState(false)
   const [error, setError] = useState("")
   const [voz, setVoz] = useState<AnalyserNode | null>(null)
   const [corrigiendo, setCorrigiendo] = useState(false)
@@ -91,27 +93,54 @@ export default function Home() {
     if (ms > hablaHasta.current) setFase("listo")
   })
 
+  // Libera el audio anterior cuando se reemplaza.
+  useEffect(() => () => {
+    if (original) URL.revokeObjectURL(original)
+  }, [original])
+
   // Reproduce un audio conectado al orbe. Resuelve cuando termina (o si no se pudo reproducir).
   function reproducir(src: string) {
     return new Promise<void>((resolve) => {
       const audio = new Audio(src)
       audio.crossOrigin = "anonymous"
       const ctx = new AudioContext()
-      const nodo = ctx.createAnalyser()
-      ctx.createMediaElementSource(audio).connect(nodo)
-      nodo.connect(ctx.destination)
-      setVoz(nodo)
+      let terminado = false
       const fin = () => {
+        if (terminado) return
+        terminado = true
         setVoz(null)
-        ctx.close()
+        ctx.close().catch(() => {})
         resolve()
       }
       audio.onended = fin
-      audio.play().catch(fin)
+      audio.onerror = fin
+      // Si el navegador crea el contexto suspendido, el audio pasaría por él en silencio.
+      // Lo activamos y, si no se puede, reproducimos directo (sin orbe, pero se escucha).
+      // resume() puede quedar pendiente para siempre si el navegador no lo permite: le damos 300 ms.
+      Promise.race([ctx.resume(), new Promise((r) => setTimeout(r, 300))])
+        .catch(() => {})
+        .finally(() => {
+          if (ctx.state === "running") {
+            const nodo = ctx.createAnalyser()
+            ctx.createMediaElementSource(audio).connect(nodo)
+            nodo.connect(ctx.destination)
+            setVoz(nodo)
+          }
+          audio.play().catch(fin)
+        })
     })
   }
 
+  // Para los botones de volver a escuchar: no pisa otra reproducción.
+  async function escuchar(src: string) {
+    if (sonando) return
+    setSonando(true)
+    await reproducir(src)
+    setSonando(false)
+  }
+
   async function procesar(audio: Blob, nombre?: string, pista?: Pista) {
+    setOriginal(audio.size ? URL.createObjectURL(audio) : null)
     setFase("pensando")
     setError("")
     setCorrigiendo(false)
@@ -158,7 +187,9 @@ export default function Home() {
     }
     if (wav) {
       setFase("escuchando")
-      await reproducir(URL.createObjectURL(wav))
+      const url = URL.createObjectURL(wav)
+      await reproducir(url)
+      URL.revokeObjectURL(url)
     }
     procesar(wav ?? new Blob(), `${a.id}.wav`, { texto: a.texto })
   }
@@ -175,6 +206,7 @@ export default function Home() {
     setVista("asistente")
     setTurno(t)
     setReferencia(null)
+    setOriginal(null)
     setCorrigiendo(false)
     setFase("listo")
   }
@@ -298,6 +330,33 @@ export default function Home() {
                     )}
                   </dl>
 
+                  {(original || turno.audio_url) && (
+                    <div className="mt-4 flex flex-wrap justify-center gap-2">
+                      {original && (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="h-10 rounded-full px-4 text-sm"
+                          disabled={sonando || fase === "hablando"}
+                          onClick={() => escuchar(original)}
+                        >
+                          <Play /> Escuchar audio original
+                        </Button>
+                      )}
+                      {turno.audio_url && (
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="h-10 rounded-full px-4 text-sm"
+                          disabled={sonando || fase === "hablando"}
+                          onClick={() => escuchar(turno.audio_url!)}
+                        >
+                          <Volume2 /> Repetir respuesta
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
                   {fase === "listo" && (
                     <div className="mt-6 w-full max-w-xl">
                       {turno.estado !== "pendiente" ? (
@@ -378,6 +437,7 @@ export default function Home() {
                   onClick={() => {
                     setTurno(null)
                     setReferencia(null)
+                    setOriginal(null)
                     setFase("inicio")
                   }}
                 >

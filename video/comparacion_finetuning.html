@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Whisper antes y después</title>
+<style>
+  :root {
+    --fondo: #f7f8fb; --texto: #14171f; --suave: #5b6272; --linea: #dfe3ec;
+    --malo: #c2410c; --malo-fondo: #fff4ed; --bueno: #1d4ed8; --bueno-fondo: #eef3ff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--fondo); color: var(--texto);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 32px;
+  }
+  h1 { font-size: 40px; margin: 0 0 8px; text-align: center; letter-spacing: -0.5px; }
+  .sub { color: var(--suave); font-size: 20px; margin: 0 0 36px; text-align: center; }
+  button {
+    font: inherit; font-size: 20px; padding: 14px 32px; border-radius: 999px; border: 0; cursor: pointer;
+    background: var(--texto); color: white;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  .barra { width: min(720px, 90vw); height: 6px; background: var(--linea); border-radius: 3px; margin: 24px 0 40px; overflow: hidden; }
+  .barra div { height: 100%; width: 0; background: var(--texto); transition: width .1s linear; }
+  .columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; width: min(1180px, 94vw); }
+  .col { border-radius: 20px; padding: 28px 32px; min-height: 230px; opacity: 0; transform: translateY(12px);
+         transition: opacity .5s, transform .5s; }
+  .col.ver { opacity: 1; transform: none; }
+  .malo { background: var(--malo-fondo); border: 2px solid #fed7c3; }
+  .bueno { background: var(--bueno-fondo); border: 2px solid #c9d8ff; }
+  .etiqueta { font-size: 18px; font-weight: 600; margin-bottom: 14px; }
+  .malo .etiqueta { color: var(--malo); } .bueno .etiqueta { color: var(--bueno); }
+  .frase { font-size: 30px; line-height: 1.35; min-height: 82px; }
+  .error { margin-top: 18px; font-size: 22px; font-weight: 700; }
+  .malo .error { color: var(--malo); } .bueno .error { color: var(--bueno); }
+  .dijo { width: min(1180px, 94vw); margin-top: 28px; font-size: 20px; color: var(--suave); text-align: center;
+          opacity: 0; transition: opacity .6s; }
+  .dijo.ver { opacity: 1; }
+  .dijo b { color: var(--texto); font-weight: 600; }
+  footer { position: fixed; bottom: 14px; font-size: 13px; color: var(--suave); }
+  .aviso { color: var(--malo); font-size: 16px; margin-top: 12px; display: none; }
+</style>
+</head>
+<body>
+  <h1>El mismo Whisper, antes y después de adaptarlo</h1>
+  <p class="sub">Persona con ELA que el modelo nunca escuchó al entrenar · 15 segundos</p>
+
+  <button id="play">▶ Escuchar</button>
+  <div class="aviso" id="aviso">No encuentro el audio: copiá ALS_F02_04.wav a frontend/public/audios-prueba/</div>
+  <div class="barra"><div id="progreso"></div></div>
+
+  <div class="columnas">
+    <div class="col malo" id="izq">
+      <div class="etiqueta">Whisper sin adaptar</div>
+      <div class="frase" id="texto-malo"></div>
+      <div class="error">95 % de error</div>
+    </div>
+    <div class="col bueno" id="der">
+      <div class="etiqueta">Whisper adaptado a estas voces (LoRA)</div>
+      <div class="frase" id="texto-bueno"></div>
+      <div class="error">5 % de error</div>
+    </div>
+  </div>
+
+  <p class="dijo" id="dijo">Lo que dijo: <b>"Empezamos a charlar, bueno, acerca de algunos proyectos y demás, y no pensé que iba a tener todo tanta repercusión."</b></p>
+
+  <footer>Audio: S-DiverSe (López et al., Interspeech 2026) · Modelo: whisper-small, sin entrenar y con LoRA · Salidas reales de la evaluación</footer>
+
+<script>
+  // Salidas reales del notebook (reconocimiento-voz/resultados/transcripciones_test.csv, columnas A y C)
+  const SIN_ADAPTAR = "y seamos al hablar algunos folletos";
+  const ADAPTADO = "Empezamos a charlar acerca de algunos proyectos y demás y no pensé que iba a tener todo tanta repercusión.";
+
+  const audio = new Audio("../frontend/public/audios-prueba/ALS_F02_04.wav");
+  const play = document.getElementById("play");
+  const progreso = document.getElementById("progreso");
+
+  function escribir(el, texto, msPorLetra) {
+    return new Promise((listo) => {
+      let i = 0;
+      const paso = () => {
+        el.textContent = texto.slice(0, ++i);
+        i < texto.length ? setTimeout(paso, msPorLetra) : listo();
+      };
+      paso();
+    });
+  }
+
+  async function mostrar() {
+    document.getElementById("izq").classList.add("ver");
+    await escribir(document.getElementById("texto-malo"), SIN_ADAPTAR, 60);
+    await new Promise((r) => setTimeout(r, 1200));
+    document.getElementById("der").classList.add("ver");
+    await escribir(document.getElementById("texto-bueno"), ADAPTADO, 28);
+    await new Promise((r) => setTimeout(r, 900));
+    document.getElementById("dijo").classList.add("ver");
+  }
+
+  function reiniciar() {
+    for (const id of ["izq", "der", "dijo"]) document.getElementById(id).classList.remove("ver");
+    document.getElementById("texto-malo").textContent = "";
+    document.getElementById("texto-bueno").textContent = "";
+    progreso.style.width = "0";
+  }
+
+  audio.addEventListener("timeupdate", () => {
+    if (audio.duration) progreso.style.width = `${(audio.currentTime / audio.duration) * 100}%`;
+  });
+  audio.addEventListener("ended", () => { progreso.style.width = "100%"; mostrar().then(() => (play.disabled = false)); });
+  audio.addEventListener("error", () => { document.getElementById("aviso").style.display = "block"; play.disabled = false; });
+
+  play.addEventListener("click", () => {
+    reiniciar();
+    play.disabled = true;
+    audio.currentTime = 0;
+    audio.play().catch(() => { document.getElementById("aviso").style.display = "block"; play.disabled = false; });
+  });
+  document.addEventListener("keydown", (e) => { if (e.code === "Space" && !play.disabled) { e.preventDefault(); play.click(); } });
+</script>
+</body>
+</html>
