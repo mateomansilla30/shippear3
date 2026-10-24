@@ -4,7 +4,9 @@ Octubre 2026
 
 ## Resumen
 
-Nuestro mejor sistema baja el error de transcripción de Whisper de **73 % a 31 %** en personas con ELA, Parkinson o secuelas de ACV que el sistema nunca escuchó. El problema principal que resolvimos: con habla disártrica, Whisper **inventa texto** (entra en bucles como "no, no, no, no..." y agrega cientos de palabras que nadie dijo).
+Nuestro mejor sistema baja el error de Whisper corriendo por cuenta propia de **73 % a 31 %** en personas con ELA, Parkinson o secuelas de ACV que el sistema nunca escuchó. El problema principal que resolvimos: con habla disártrica, ese Whisper **inventa texto** (entra en bucles como "no, no, no, no..." y agrega cientos de palabras que nadie dijo).
+
+El mismo Whisper servido por Groq ya evita casi todas las alucinaciones (32,7 %); sobre él, el sistema mejora 1,6 puntos. Con nuestras reglas, Whisper local queda al nivel de ese servicio, sin mandar la voz afuera. El ~31 % que queda son errores acústicos: el reconocimiento no está resuelto.
 
 El sistema final es simple: Whisper grande (`whisper-large-v3-turbo`) + reglas que eliminan las repeticiones inventadas + un LLM que corrige palabras dudosas. No requiere entrenar nada y corre sin GPU. También probamos adaptar un Whisper chico con fine-tuning (LoRA): ayuda mucho a algunas voces, pero no alcanza al modelo grande.
 
@@ -98,8 +100,13 @@ El sistema final (Whisper grande + reglas + LLM) es el mejor: **30,7 %** de erro
 | Whisper grande (turbo) | 73,0 % |
 | turbo + reglas | 31,1 % |
 | **turbo + reglas + LLM (sistema final)** | **30,7 %** |
+| turbo por API de Groq | 32,7 % |
+| Groq + reglas | 31,4 % |
+| Groq + reglas + LLM (lo que corre en la demo en vivo) | 31,0 % |
 
 **Qué dicen los números:**
+
+- **El servicio de Groq ya evita casi todas las alucinaciones.** El "73 % → 31 %" vale para Whisper corriendo por cuenta propia. Sobre Groq, el sistema mejora 1,6 puntos (IC 0,6 a 5,5), sobre todo en ACV (35,0 → 21,9, con solo 160 palabras).
 
 - **Las reglas hacen casi todo el trabajo.** Solo ellas bajan el Whisper grande de 73 % a 31 %, y whisper-small de 88 % a 44 %. El 58 % de los errores originales eran palabras inventadas.
 - **El LLM ayuda poco pero en la dirección correcta.** Sobre whisper-small mejora 2,1 puntos (IC 1,8 a 3,9); sobre el grande, 0,4 puntos (IC 0,0 a 1,2). En el grande corrigió 28 fragmentos: mejoró 11 y empeoró 4.
@@ -131,17 +138,19 @@ La demo es una página web (Gradio): se graba o sube un audio y se ven lado a la
 
 **Guión sugerido (3 minutos):**
 
-1. **El problema.** Poné ALS_M06_07 (ELA, inteligibilidad baja, 31 s). Que el público escuche: es difícil de entender.
-2. **Whisper falla.** Mostrá la columna izquierda: Whisper entiende el principio y después inventa "no, no, no, no..." (215 palabras que nadie dijo).
-3. **Nuestro sistema.** La columna derecha conserva lo que sí se entendió y elimina lo inventado: error de 517 % a 54 %.
-4. **El número.** En 6 personas que el sistema nunca escuchó: de 73 % a 31 % de error.
+1. **El problema (diapositiva).** ALS_M06_07 (ELA, inteligibilidad baja, 31 s), con Whisper corriendo por cuenta propia: entiende el principio y después inventa "no, no, no, no..." (215 palabras que nadie dijo). El sistema elimina lo inventado: error de 517 % a 54 %. En vivo no se reproduce, porque Groq ya evita ese bucle.
+2. **En vivo.** Poné PARKINSON_F01_20 en la app: Whisper escribe "tres grupos de **parísos**" y el sistema corrige a "**párkinson**". O STROKE_M01_04: "me levantaba a **naciste**" → "a **las siete**".
+3. **El número.** En 6 personas que el sistema nunca escuchó: Whisper local de 73 % a 31 %; sobre Groq, de 32,7 % a 31,0 %.
+4. **Por qué hace falta el resto de Voz Clara.** Aun así se equivoca en 1 de cada 3 palabras: por eso el agente confirma u ofrece opciones cuando la confianza es baja.
 5. **La visión (opcional).** Escribí un perfil en el campo "Perfil del usuario" ("Se llama Marta, su hija es Lucía") y mostrá cómo el LLM usa ese contexto. Aclará que es la idea de producto, no algo que medimos.
 
 **Audios para usar:**
 
 | Audio | Qué muestra | Dónde mostrarlo |
 | --- | --- | --- |
-| ALS_M06_07 (31 s, ELA) | Whisper grande inventa 215 palabras en bucle; el sistema las elimina | App en vivo |
+| ALS_M06_07 (31 s, ELA) | Whisper local inventa 215 palabras en bucle; el sistema las elimina | Diapositiva (Groq no entra en bucle) |
+| PARKINSON_F01_20 (30 s, Parkinson) | Groq escribe "parísos"; el sistema corrige a "párkinson" | App en vivo |
+| STROKE_M01_04 (6 s, ACV) | Groq escribe "a naciste"; el sistema corrige a "a las siete" | App en vivo |
 | PARKINSON_M01_07_01 (4 s) | whisper-small: "sí, sí, no, no, no..." (1.809 %) → sistema 27 % | Diapositiva |
 | ALS_F02_04 (15 s, ELA) | whisper-small escribe solo "y" → sistema 5 % | Diapositiva |
 | STROKE_F01_02 (8 s, ACV) | Riesgo del LLM: cambia "paresia" (correcto) por "parálisis" | Diapositiva, si preguntan por riesgos |
@@ -150,7 +159,7 @@ Los dos de whisper-small van en diapositiva porque la app compara contra el Whis
 
 **Plan B (si algo falla en vivo):**
 
-- **La API de Groq no devuelve lo mismo que evaluamos.** En una prueba agregó una frase que nadie dijo, y puede que ALS_M06_07 no entre en bucle esa vez. Tené lista una diapositiva con el ejemplo y sus números.
+- **La API de Groq puede variar entre corridas.** En una prueba agregó una frase que nadie dijo. Probá los audios en vivo antes de presentar y tené un video de respaldo.
 - **Se cayó la sesión de Colab.** *Ejecutar todas* de nuevo: en 2 o 3 minutos hay link nuevo.
 - **Sin internet o sin Groq.** Mostrá las transcripciones guardadas en `Mi unidad/Shippear/sdiverse_hackathon/demo_turbo/demo_turbo.csv` y reproducí los WAV desde Drive.
 
@@ -163,7 +172,7 @@ El paso con más potencial es adaptar el Whisper grande con LoRA, porque el chic
 3. **Contexto real del usuario.** Probar con perfiles reales (nombres de la familia, rutinas, vocabulario propio) en vez de la simulación. Es la hipótesis de producto de Buendía y todavía no está demostrada.
 4. **Detectar "no entendí".** Cuando Whisper entra en bucle, hoy el sistema devuelve casi nada. Mejor: avisar "no se entendió, ¿podés repetir?" en lugar de un texto vacío.
 5. **Validación cruzada.** Medir el modelo entrenado sobre las 22 personas (4 rondas, ya programado en el notebook) para que el número no dependa de quiénes quedaron en test.
-6. **Evaluar en vivo.** Medir el WER con la API de Groq sobre el test completo: puede diferir del Whisper que evaluamos en Colab.
+6. **Calibrar la confianza.** Elegir los umbrales de "actuar / confirmar / ofrecer opciones" con hablantes de validación, para que el agente no actúe con confianza alta cuando Whisper se equivocó.
 
 ## Mapa de archivos
 

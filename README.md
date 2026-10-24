@@ -10,7 +10,7 @@ Proyecto para un hackatón de IA, construido sobre el dataset [S-DiverSe](https:
 
 ## El problema
 
-Los asistentes de voz y los sistemas de reconocimiento del habla se entrenan con habla típica y fallan con personas con disartria. Con habla disártrica, Whisper además **inventa texto**: entra en bucles ("no, no, no, no...") y agrega cientos de palabras que nadie dijo. Estas personas no pueden usar asistentes ni hacerse entender por teléfono o en un comercio sin depender de un familiar. Las pocas soluciones especializadas que existen están pensadas sobre todo para el inglés.
+Los asistentes de voz y los sistemas de reconocimiento del habla se entrenan con habla típica y fallan con personas con disartria. Con habla disártrica, Whisper corriendo por cuenta propia además **inventa texto**: entra en bucles ("no, no, no, no...") y agrega cientos de palabras que nadie dijo. Aun sin esos bucles, se equivoca en casi 1 de cada 3 palabras. Estas personas no pueden usar asistentes ni hacerse entender por teléfono o en un comercio sin depender de un familiar. Las pocas soluciones especializadas que existen están pensadas sobre todo para el inglés.
 
 Muchas pueden escribir, pero no es lo mismo. Escribir es lento, saca a la persona del ritmo de la conversación y la convierte en alguien a quien hay que leer en vez de escuchar. Hablar es parte de quién somos: es como le decimos "te quiero" a una hija o contamos un chiste. **No queremos que dejen de hablar: queremos que sigan hablando y que se las entienda.**
 
@@ -75,10 +75,24 @@ WER (tasa de error por palabra, en %; menor es mejor) sobre los **hablantes de t
 | Turbo | whisper-large-v3-turbo sin entrenar | 73,0 | 19,0 | 12,1 | 13,8 | 12,2 | 162,2 |
 | Turbo + reglas | turbo + reglas | 31,1 | 18,7 | 10,6 | 11,1 | 12,2 | 54,9 |
 | **Turbo + reglas + LLM** | **pipeline final** | **30,7** | 18,6 | 10,6 | 11,5 | 11,5 | 54,1 |
-| B + contexto | B con contexto simulado de la persona | 41,0 | [completar] | [completar] | [completar] | [completar] | [completar] |
-| D + contexto | D con contexto simulado de la persona | 35,1 | [completar] | [completar] | [completar] | [completar] | [completar] |
+| B + contexto | B con contexto simulado de la persona | 41,0 | 26,2 | 24,1 | 19,4 | 10,1 | 69,1 |
+| D + contexto | D con contexto simulado de la persona | 35,1 | 24,8 | 9,2 | 14,3 | 14,9 | 57,8 |
 
 **El mejor pipeline es turbo + reglas + LLM (30,7 %).** Casi toda la mejora viene de las reglas: turbo baja de 73,0 a 31,1 solo con ellas, y el LLM agrega 0,4 puntos (IC 95 % por hablantes: 0,0 a 1,2). Contra D, con el mismo LLM, el pipeline final es 5,3 puntos mejor (IC 2,3 a 6,6).
+
+**Whisper por API (Groq), el que usa la demo en vivo.** El mismo modelo servido por Groq ya evita casi todas las alucinaciones, así que la mejora es menor:
+
+| Condición | Total | ELA | Parkinson | ACV |
+| --- | --- | --- | --- | --- |
+| | *98 seg. / 6 hab.* | *47 / 3* | *27 / 1* | *24 / 2* |
+| Groq (whisper-large-v3-turbo por API) | 32,7 | 43,1 | 19,5 | 35,0 |
+| Groq + reglas | 31,4 | 42,5 | 18,6 | 24,4 |
+| **Groq + reglas + LLM** | **31,0** | 42,5 | 18,3 | 21,9 |
+
+Sobre Groq, el sistema mejora 1,6 puntos (IC 95 %: 0,6 a 5,5). Dos lecturas:
+
+- **El "73 % → 31 %" vale para Whisper corriendo por cuenta propia**, no contra un servicio comercial. Con nuestras reglas, Whisper local queda al nivel del servicio de Groq (30,7 contra 32,7), lo que permite procesar la voz sin mandarla afuera.
+- **El ~31 % que queda son errores acústicos, no alucinaciones.** Por eso Voz Clara no actúa a ciegas: confirma u ofrece opciones cuando la confianza es baja.
 
 Notas para leer la tabla:
 

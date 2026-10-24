@@ -1,0 +1,8 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+openai>=1.40
+google-genai>=2.25.0
+python-dotenv>=1.0
+jiwer>=4.0
+num2words>=0.5

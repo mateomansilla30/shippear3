@@ -1,0 +1,7 @@
+.env
+.venv/
+salidas/
+__pycache__/
+*.wav
+*.ogg
+datos/

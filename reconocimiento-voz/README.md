@@ -1,10 +1,12 @@
 # Whisper para habla con disartria en español (S-DiverSe)
 
 Reconocimiento de voz para personas con **ELA, Parkinson o secuelas de ACV**. Nuestro sistema baja el error de
-transcripción de Whisper de **73 % a 31 %** en personas que nunca escuchó.
+Whisper corriendo por cuenta propia de **73 % a 31 %** en personas que nunca escuchó, y deja a ese Whisper local al
+nivel del servicio comercial de Groq (32,7 %).
 
-El hallazgo central: con habla disártrica, Whisper **inventa texto**. Entra en bucles ("no, no, no, no...") y agrega
-cientos de palabras que nadie dijo. Eliminar esas alucinaciones es lo que más mejora el resultado.
+El hallazgo central: con habla disártrica, Whisper corriendo por cuenta propia **inventa texto**. Entra en bucles
+("no, no, no, no...") y agrega cientos de palabras que nadie dijo. Eliminar esas alucinaciones es lo que más mejora el
+resultado. El error que queda (~31 %) es acústico: el reconocimiento no está resuelto.
 
 La [guía del proyecto](GUIA.md) explica en detalle las métricas, cómo hacer la demo en vivo y dónde está cada archivo.
 
@@ -24,19 +26,24 @@ Error por palabra (WER, menor es mejor) sobre 6 personas de test que ningún mod
 | whisper-large-v3-turbo | 73,0 % |
 | turbo + reglas | 31,1 % |
 | **turbo + reglas + LLM (sistema final)** | **30,7 %** |
+| turbo por API de Groq | 32,7 % |
+| Groq + reglas | 31,4 % |
+| Groq + reglas + LLM (lo que corre en la demo en vivo) | 31,0 % |
 
 Por enfermedad:
 
-| Enfermedad | Personas en test | Fragmentos | whisper-small | turbo | Sistema final |
-|---|---|---|---|---|---|
-| ELA | 3 | 47 | 130,7 % | 107,2 % | 42,4 % |
-| Parkinson | 1 | 27 | 46,7 % | 19,3 % | 18,3 % |
-| ACV | 2 | 24 | 21,2 % | 145,0 % | 18,1 % |
+| Enfermedad | Personas en test | Fragmentos | whisper-small | turbo | Sistema final | Groq | Groq + reglas + LLM |
+|---|---|---|---|---|---|---|---|
+| ELA | 3 | 47 | 130,7 % | 107,2 % | 42,4 % | 43,1 % | 42,5 % |
+| Parkinson | 1 | 27 | 46,7 % | 19,3 % | 18,3 % | 19,5 % | 18,3 % |
+| ACV | 2 | 24 | 21,2 % | 145,0 % | 18,1 % | 35,0 % | 21,9 % |
 
 Qué muestran los números:
 
 - **Las reglas hacen la mayor parte del trabajo:** bajan a turbo de 73 % a 31 %. El 58 % de los errores de
   whisper-small eran palabras inventadas.
+- **El servicio de Groq ya evita casi todas las alucinaciones:** el mismo modelo por su API da 32,7 %. Sobre Groq, el
+  sistema mejora 1,6 puntos (IC 95 %: 0,6 a 5,5), sobre todo en ACV (35,0 → 21,9, con solo 160 palabras).
 - **El LLM ayuda poco pero en la dirección correcta:** +2,1 puntos sobre whisper-small (IC 95 %: 1,8 a 3,9) y
   +0,4 sobre turbo (IC 0,0 a 1,2).
 - **El fine-tuning ayuda a algunas voces** (una paciente con ELA pasa de 27 % a 8 %), pero el modelo chico entrenado
